@@ -49,35 +49,25 @@ type depsTab struct {
 	// newExecutor returns the dependency executor bound to the given
 	// backup limit. It is read before every operation so a mid-session
 	// limit change in Settings is honoured. It is bound through
-	// Model.BindDepsOperations: main.go binds a single deps.Executor
-	// for moduleDir; tests bind a fake to drive the cycle and the
+	// Model.BindDeps: main.go binds a single deps.Executor for
+	// moduleDir; tests bind a fake to drive the cycle and the
 	// standalone operations without IO. Unbound, every operation
 	// reports errDepsUnavailable through the ordinary error path.
-	newExecutor func(backupLimit int) DepsExecutor
+	newExecutor func(backupLimit int) deps.API
 	// display and backupLimit are the Settings values the tab depends
 	// on, pushed through applySettings.
 	display     config.DepsDisplayMode
 	backupLimit int
 }
 
-// DepsExecutor is the seam through which the Deps tab performs every
-// side-effecting dependency operation. *deps.Executor satisfies it.
-type DepsExecutor interface {
-	Execute(intent deps.Intent) (deps.Event, error)
-	List() ([]deps.ModuleDependency, error)
-	CheckUpdates() ([]deps.ModuleDependency, error)
-	Backups() ([]deps.DependencyBackupInfo, error)
-	Restore(backupName string) (deps.DependencyRestoreResult, error)
-}
-
 // errDepsUnavailable is what every dependency operation returns while
-// no DepsExecutor is bound. It surfaces as a status message instead of
-// a nil dereference, so a Model built without BindDepsOperations
+// no deps.API is bound. It surfaces as a status message instead of
+// a nil dereference, so a Model built without BindDeps
 // degrades quietly rather than crashing the TUI.
 var errDepsUnavailable = errors.New("dependency operations are unavailable")
 
-// unavailableDepsExecutor is the DepsExecutor in force before
-// BindDepsOperations: every method fails with errDepsUnavailable.
+// unavailableDepsExecutor is the deps.API in force before BindDeps:
+// every method fails with errDepsUnavailable.
 type unavailableDepsExecutor struct{}
 
 func (unavailableDepsExecutor) Execute(deps.Intent) (deps.Event, error) {

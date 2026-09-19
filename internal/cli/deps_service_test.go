@@ -58,6 +58,18 @@ func (f *fakeExecutor) List() ([]deps.ModuleDependency, error) {
 	return nil, nil
 }
 
+func (f *fakeExecutor) CheckUpdates() ([]deps.ModuleDependency, error) {
+	mods, err := f.Execute(deps.IntentCheckUpdates{})
+	if err != nil {
+		return nil, err
+	}
+	done, ok := mods.(deps.CheckUpdatesDoneEvent)
+	if !ok {
+		return nil, nil
+	}
+	return done.Dependencies, done.Err
+}
+
 func (f *fakeExecutor) Backups() ([]deps.DependencyBackupInfo, error) {
 	if f.backups != nil {
 		return f.backups()
@@ -690,16 +702,15 @@ func TestDefaultConfirmReadsBufferedAnswersAcrossPrompts(t *testing.T) {
 }
 
 func TestNewDepsServiceWiresDefaults(t *testing.T) {
-	root := t.TempDir()
-	writeFile(t, root, "go.mod", "module example.com/test\n\ngo 1.26\n")
-	svc := NewDepsService(root, &bytes.Buffer{}, &bytes.Buffer{})
-	if _, ok := svc.Deps.(*deps.Executor); !ok {
-		t.Fatalf("Deps = %T, want *deps.Executor", svc.Deps)
+	fx := &fakeExecutor{}
+	svc := NewDepsService("/tmp/m", fx, &bytes.Buffer{}, &bytes.Buffer{})
+	if svc.Deps != deps.API(fx) {
+		t.Fatalf("Deps = %T, want the bound executor", svc.Deps)
 	}
 	if svc.Confirm == nil {
 		t.Fatal("Confirm should be wired")
 	}
-	if svc.ModuleDir != root {
-		t.Fatalf("ModuleDir = %q, want %q", svc.ModuleDir, root)
+	if svc.ModuleDir != "/tmp/m" {
+		t.Fatalf("ModuleDir = %q, want %q", svc.ModuleDir, "/tmp/m")
 	}
 }

@@ -125,12 +125,12 @@ func standalonePhaseName(phase depsPhase) string {
 	}
 }
 
-// A Model built without BindDepsOperations must degrade to a status
-// message, never a nil dereference: the unavailable executor fails
-// every operation and the ordinary error path renders it.
+// A Model built without BindDeps must degrade to a status message,
+// never a nil dereference: the unavailable executor fails every
+// operation and the ordinary error path renders it.
 func TestDepsOperationsUnavailableUntilBound(t *testing.T) {
 	m := newTestModel(t)
-	m = m.BindDepsOperations(DepsOperations{})
+	m = m.BindDeps(nil)
 	m.CurrentTab = InstalledTab
 
 	updated, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})

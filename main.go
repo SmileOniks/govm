@@ -39,6 +39,17 @@ func main() {
 		path, s, _, err := config.LoadWithMigration()
 		return path, s, err
 	})
+	// moduleDir is resolved once per process: the CLI deps commands
+	// and the TUI's Deps tab share the same working directory and the
+	// same lazily-resolved executor.
+	moduleDir, err := os.Getwd()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error getting working directory: %v\n", err)
+		return
+	}
+	// The executor resolves the module lazily, so binding it here
+	// never touches the go toolchain before a deps operation runs.
+	depsExecutor := deps.NewExecutor(moduleDir, nil).WithBackupLimit(settings.DepsBackupLimit)
 	runtime, err := services.NewRuntime(settings)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error initializing services: %v\n", err)
@@ -60,6 +71,8 @@ func main() {
 		Registry:                 runtime.Registry,
 		ShimInPath:               utils.IsShimInPath,
 		ChangeDistributionSource: distributionSource.Change,
+		Deps:                     depsExecutor,
+		ModuleDir:                moduleDir,
 	}, os.Stdin, os.Stdout, os.Stderr)
 	if len(os.Args) > 1 {
 		if handleCommandLine(app) != 0 {
@@ -68,7 +81,7 @@ func main() {
 		return
 	}
 	// handleCommandLine and TUI should never throw at the same time
-	launchTUI(runtime, distributionSource, settingsPath, settings)
+	launchTUI(runtime, distributionSource, moduleDir, settingsPath, settings)
 }
 
 // runDoctor wires the production diagnostics dependencies and renders
@@ -193,7 +206,7 @@ func loadTUISettings(stderr io.Writer, load func() (string, config.Settings, err
 	return settingsPath, settings
 }
 
-func launchTUI(runtime *services.Runtime, distributionSource *application.DistributionSourceOperation, settingsPath string, settings config.Settings) {
+func launchTUI(runtime *services.Runtime, distributionSource *application.DistributionSourceOperation, moduleDir, settingsPath string, settings config.Settings) {
 	shimInPath := utils.IsShimInPath()
 	if !shimInPath {
 		setupModel, err := setup.New()
@@ -217,19 +230,11 @@ func launchTUI(runtime *services.Runtime, distributionSource *application.Distri
 		fmt.Println("Error getting home directory:", err)
 		os.Exit(1)
 	}
-	moduleDir, err := os.Getwd()
-	if err != nil {
-		fmt.Println("Error getting working directory:", err)
-		os.Exit(1)
-	}
 	if _, err := runtime.Paths.VersionsDir(); err != nil {
 		fmt.Println("Error resolving versions directory:", err)
 		os.Exit(1)
 	}
 
-	// The executor resolves the module lazily, so binding it here
-	// never touches the go toolchain before the Deps tab asks.
-	depsExecutor := deps.NewExecutor(moduleDir, nil)
 	initialModel := model.New(moduleDir, settingsPath, settings, shimPathWarning, theme).
 		BindVersionOperations(model.VersionOperations{
 			LoadCatalog:         runtime.Loader.LoadVersions,
@@ -244,10 +249,8 @@ func launchTUI(runtime *services.Runtime, distributionSource *application.Distri
 			Prune:               runtime.Prune.Prune,
 			DiskUsage:           runtime.Prune.DiskUsage,
 		}).
-		BindDepsOperations(model.DepsOperations{
-			Executor: func(backupLimit int) model.DepsExecutor {
-				return depsExecutor.WithBackupLimit(backupLimit)
-			},
+		BindDeps(func(backupLimit int) deps.API {
+			return deps.NewExecutor(moduleDir, nil).WithBackupLimit(backupLimit)
 		})
 	p := tea.NewProgram(
 		model.NewProgramModel(initialModel),

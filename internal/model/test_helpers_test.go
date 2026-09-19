@@ -230,7 +230,5 @@ func (fakeDepsExecutor) Restore(string) (deps.DependencyRestoreResult, error) {
 }
 
 func (f fakeDepsExecutor) bind(m *Model) {
-	*m = m.BindDepsOperations(DepsOperations{
-		Executor: func(int) DepsExecutor { return f },
-	})
+	*m = m.BindDeps(func(int) deps.API { return f })
 }

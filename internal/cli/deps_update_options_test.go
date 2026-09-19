@@ -261,4 +261,34 @@ func TestDepsCommandReportsFailure(t *testing.T) {
 	if !strings.Contains(out.String(), "mutually exclusive") {
 		t.Fatalf("unexpected output: %s", out.String())
 	}
+	out.Reset()
+	if app.DepsCommand("list") {
+		t.Fatal("deps must report failure when no executor is configured")
+	}
+	if !strings.Contains(out.String(), "not configured") {
+		t.Fatalf("unexpected output: %s", out.String())
+	}
+}
+
+// DepsCommand runs end-to-end through a fake executor: the App maps
+// the subcommand onto the bound deps.API without touching the
+// filesystem or the go toolchain.
+func TestDepsCommandRunsListThroughFakeExecutor(t *testing.T) {
+	out := &bytes.Buffer{}
+	fx := &fakeExecutor{list: func() ([]deps.ModuleDependency, error) {
+		return []deps.ModuleDependency{{Path: "github.com/d/x", Version: "v1.0.0"}}, nil
+	}}
+	app := NewApp(Operations{Deps: fx, ModuleDir: "/tmp/m"}, strings.NewReader(""), out, out)
+	if !app.DepsCommand("list") {
+		t.Fatal("list must succeed")
+	}
+	for _, want := range []string{
+		"Reading module dependencies in /tmp/m",
+		"github.com/d/x\tv1.0.0\tdirect",
+		"1 direct, 0 indirect",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("output missing %q:\n%s", want, out.String())
+		}
+	}
 }

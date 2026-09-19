@@ -56,7 +56,7 @@ var (
 
 // executor returns the dependency executor bound to the current
 // backup limit, or the unavailable executor while none is bound.
-func (s depsTab) executor() DepsExecutor {
+func (s depsTab) executor() deps.API {
 	if s.newExecutor == nil {
 		return unavailableDepsExecutor{}
 	}

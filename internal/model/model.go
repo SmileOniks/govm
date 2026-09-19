@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/smileoniks-ctrl/govm/internal/application"
 	"github.com/smileoniks-ctrl/govm/internal/config"
+	"github.com/smileoniks-ctrl/govm/internal/deps"
 	"github.com/smileoniks-ctrl/govm/internal/prune"
 	"github.com/smileoniks-ctrl/govm/internal/styles"
 )
@@ -211,19 +212,13 @@ func (m Model) BindVersionOperations(operations VersionOperations) Model {
 	return m
 }
 
-// DepsOperations is the process-composed seam of the Deps tab: the one
-// IO dependency the tab has. Executor returns the dependency executor
-// bound to the given backup limit; production wraps a single
-// deps.Executor, tests a fake.
-type DepsOperations struct {
-	Executor func(backupLimit int) DepsExecutor
-}
-
-// BindDepsOperations returns a copy of m bound to the given dependency
-// executor. Without it every dependency operation reports that it is
-// unavailable.
-func (m Model) BindDepsOperations(operations DepsOperations) Model {
-	m.deps.newExecutor = operations.Executor
+// BindDeps returns a copy of m whose Deps tab uses the given executor
+// factory. The factory receives the current backup limit before every
+// operation, so a mid-session limit change in Settings is honoured;
+// production wraps a single deps.Executor, tests a fake. Without it
+// every dependency operation reports that it is unavailable.
+func (m Model) BindDeps(executor func(backupLimit int) deps.API) Model {
+	m.deps.newExecutor = executor
 	return m
 }
 

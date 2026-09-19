@@ -8,19 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/smileoniks-ctrl/govm/internal/config"
 	"github.com/smileoniks-ctrl/govm/internal/deps"
 )
-
-// depsExecutor is the seam through which DepsService performs every
-// side-effecting dependency operation. *deps.Executor satisfies it in
-// production; tests substitute a fake.
-type depsExecutor interface {
-	Execute(intent deps.Intent) (deps.Event, error)
-	List() ([]deps.ModuleDependency, error)
-	Backups() ([]deps.DependencyBackupInfo, error)
-	Restore(backupName string) (deps.DependencyRestoreResult, error)
-}
 
 // DepsService encapsulates the CLI dependency workflow.
 //
@@ -43,31 +32,29 @@ type DepsService struct {
 
 	// Deps performs the dependency operations of the module at
 	// ModuleDir. It is the single seam through which every command
-	// does side-effecting work; tests substitute a fake.
-	Deps depsExecutor
+	// does side-effecting work; main.go binds the same deps.Executor
+	// the TUI uses, tests substitute a fake.
+	Deps deps.API
 }
 
-// NewDepsService builds a service wired to a deps.Executor bound to
-// the configured dependency backup limit, so retention policy is
-// honoured for every apply and restore. The module is resolved by the
-// first command, not here.
-func NewDepsService(moduleDir string, stdout io.Writer, stdin io.Reader) *DepsService {
+// NewDepsService builds a DepsService over the already-bound
+// executor: the composition root (main.go) owns settings loading and
+// executor construction, so the service never touches the filesystem
+// or the go toolchain here. The module is resolved lazily by the
+// executor, not by this constructor.
+func NewDepsService(moduleDir string, executor deps.API, stdout io.Writer, stdin io.Reader) *DepsService {
 	if stdout == nil {
 		stdout = os.Stdout
 	}
 	if stdin == nil {
 		stdin = os.Stdin
 	}
-	settings, err := config.Load("")
-	if err != nil {
-		settings = config.DefaultSettings()
-	}
 	return &DepsService{
 		ModuleDir: moduleDir,
 		Stdout:    stdout,
 		Stdin:     stdin,
 		Confirm:   defaultConfirm(stdin, stdout),
-		Deps:      deps.NewExecutor(moduleDir, nil).WithBackupLimit(settings.DepsBackupLimit),
+		Deps:      executor,
 	}
 }
 

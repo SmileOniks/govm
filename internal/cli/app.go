@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"time"
 
@@ -62,6 +61,12 @@ type Operations struct {
 	ShimInPath               func() bool
 	ChangeDistributionSource changeDistributionSourceFunc
 	Doctor                   doctorFunc
+	// Deps runs the dependency operations of the module at ModuleDir
+	// for the `govm deps` commands; main.go binds the same executor
+	// the TUI uses. A nil Deps (and ModuleDir) makes `govm deps`
+	// report that it is not configured, as the doctor-only App does.
+	Deps      deps.API
+	ModuleDir string
 }
 
 func (a *App) ChangeDistributionSource(source string) bool {
@@ -349,39 +354,41 @@ func (a *App) DepsCommand(args ...string) bool {
 		fmt.Fprintln(a.out, "Run 'govm deps help' for usage.")
 		return false
 	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		fmt.Fprintf(a.out, "❌ Error getting working directory: %v\n", err)
-		return false
-	}
-	service := NewDepsService(cwd, a.out, a.in)
+	// Each subcommand parses its own arguments first, so an invalid
+	// invocation is reported even when no executor is configured.
+	var run func(*DepsService) error
 	switch subcommand {
 	case "list":
-		err = service.RunList()
+		run = (*DepsService).RunList
 	case "check":
 		level, parseErr := parseDepsCheckArgs(args[1:])
 		if parseErr != nil {
 			fmt.Fprintf(a.out, "Error: %v\n", parseErr)
 			return false
 		}
-		err = service.RunCheck(level)
+		run = func(s *DepsService) error { return s.RunCheck(level) }
 	case "update":
 		opts, parseErr := parseDepsUpdateArgs(args[1:])
 		if parseErr != nil {
 			fmt.Fprintf(a.out, "Error: %v\n", parseErr)
 			return false
 		}
-		err = service.RunUpdate(opts)
+		run = func(s *DepsService) error { return s.RunUpdate(opts) }
 	case "backups":
-		err = service.RunBackups()
+		run = (*DepsService).RunBackups
 	case "restore":
 		name := ""
 		if len(args) > 1 {
 			name = args[1]
 		}
-		err = service.RunRestore(name)
+		run = func(s *DepsService) error { return s.RunRestore(name) }
 	}
-	if err != nil {
+	if a.operations.Deps == nil {
+		fmt.Fprintln(a.out, "Error: dependency operations are not configured")
+		return false
+	}
+	service := NewDepsService(a.operations.ModuleDir, a.operations.Deps, a.out, a.in)
+	if err := run(service); err != nil {
 		fmt.Fprintf(a.out, "❌ %s\n", err)
 		return false
 	}
