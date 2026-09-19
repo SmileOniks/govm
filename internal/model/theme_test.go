@@ -13,15 +13,15 @@ import (
 func TestSettingsDepsBackupLimitInputFollowsTheme(t *testing.T) {
 	m := newTestModel(t)
 
-	m.Settings.Values.Theme = config.ThemeLight
+	m.settings.values.Theme = config.ThemeLight
 	m.applyRuntimeTheme()
-	if got := m.Settings.DepsBackupLimitInput.Styles(); !reflect.DeepEqual(got, textinput.DefaultLightStyles()) {
+	if got := m.settings.depsBackupLimitInput.Styles(); !reflect.DeepEqual(got, textinput.DefaultLightStyles()) {
 		t.Fatal("expected backup limit input to use light theme styles")
 	}
 
-	m.Settings.Values.Theme = config.ThemeCurrent
+	m.settings.values.Theme = config.ThemeCurrent
 	m.applyRuntimeTheme()
-	if got := m.Settings.DepsBackupLimitInput.Styles(); !reflect.DeepEqual(got, textinput.DefaultDarkStyles()) {
+	if got := m.settings.depsBackupLimitInput.Styles(); !reflect.DeepEqual(got, textinput.DefaultDarkStyles()) {
 		t.Fatal("expected backup limit input to use current theme styles")
 	}
 }
@@ -33,15 +33,14 @@ func TestSettingsDepsBackupLimitInputFollowsTheme(t *testing.T) {
 // reset in t.Cleanup.
 func TestSettingsToggleThemeChangesStateAndMessage(t *testing.T) {
 	m := newTestModel(t)
-	m.CurrentTab = SettingsTab
-	m.Settings.Cursor = 1
+	m = focusSetting(t, m, settingRowTheme)
 	wantLightPrimary := styles.NewTheme(config.ThemeLight).Primary
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: ' '})
 	m = updated.(Model)
 
-	if m.Settings.Values.Theme != config.ThemeLight {
-		t.Fatalf("expected theme light, got %q", m.Settings.Values.Theme)
+	if m.settings.values.Theme != config.ThemeLight {
+		t.Fatalf("expected theme light, got %q", m.settings.values.Theme)
 	}
 	if m.Status.Kind() == "error" || m.Status.Text() == "" {
 		t.Fatalf("expected non-error message after theme save, got %q: %s", m.Status.Kind(), m.Status.Text())
@@ -59,12 +58,12 @@ func TestSettingsToggleThemeChangesStateAndMessage(t *testing.T) {
 func TestApplyRuntimeThemeRebuildsDependencyDialogStyles(t *testing.T) {
 	m := newTestModel(t)
 
-	m.Settings.Values.Theme = config.ThemeCurrent
+	m.settings.values.Theme = config.ThemeCurrent
 	m.applyRuntimeTheme()
 	currentDialog := depsDialog{kind: dialogChecks, choiceYes: true}.
 		render(m.theme, depsTab{}, viewportSize{Width: 64, Height: 20})
 
-	m.Settings.Values.Theme = config.ThemeLight
+	m.settings.values.Theme = config.ThemeLight
 	m.applyRuntimeTheme()
 	lightDialog := depsDialog{kind: dialogChecks, choiceYes: true}.
 		render(m.theme, depsTab{}, viewportSize{Width: 64, Height: 20})

@@ -188,8 +188,8 @@ func newTestModel(t testing.TB) Model {
 
 	m := New(
 		"",
-		filepath.Join(home, ".config", "govm", "settings.json"),
 		config.DefaultSettings(),
+		newMemorySettingsStore(config.DefaultSettings()),
 		"",
 		testTheme(),
 	)
@@ -215,6 +215,25 @@ type fakeDepsExecutor struct {
 	execute func(deps.Intent) (deps.Event, error)
 }
 
+// memorySettingsStore is the in-memory config.Store adapter for
+// tests: it records the last saved values and can be told to fail.
+type memorySettingsStore struct {
+	values config.Settings
+	err    error
+}
+
+func newMemorySettingsStore(values config.Settings) *memorySettingsStore {
+	return &memorySettingsStore{values: config.Normalize(values)}
+}
+
+func (s *memorySettingsStore) Save(settings config.Settings) error {
+	if s.err != nil {
+		return s.err
+	}
+	s.values = config.Normalize(settings)
+	return nil
+}
+
 func (f fakeDepsExecutor) Execute(intent deps.Intent) (deps.Event, error) {
 	if f.execute != nil {
 		return f.execute(intent)
@@ -231,4 +250,28 @@ func (fakeDepsExecutor) Restore(string) (deps.DependencyRestoreResult, error) {
 
 func (f fakeDepsExecutor) bind(m *Model) {
 	*m = m.BindDeps(func(int) deps.API { return f })
+}
+
+// focusSetting drives the Settings tab to the given row by pressing
+// the navigation keys, so tests reach a row the way the user does
+// (ADR-0004: tests go through the tab's interface, not its fields).
+func focusSetting(t testing.TB, m Model, row settingsRowKind) Model {
+	t.Helper()
+	if m.CurrentTab != SettingsTab {
+		m.CurrentTab = SettingsTab
+	}
+	for range settingRowCount {
+		if m.settings.cursor == row {
+			return m
+		}
+		m = press(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
+	}
+	t.Fatalf("setting row %d not found from cursor %d", row, m.settings.cursor)
+	return m
+}
+
+// settingsStore returns the Model's in-memory settings store, the
+// second config.Store adapter (production binds config.FileStore).
+func settingsStore(m Model) *memorySettingsStore {
+	return m.settings.store.(*memorySettingsStore)
 }

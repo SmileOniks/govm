@@ -8,10 +8,10 @@ import (
 	"github.com/smileoniks-ctrl/govm/internal/styles"
 )
 
-func renderDepsBackupLimitDialog(t styles.Theme, settings SettingsState, viewport viewportSize) string {
-	errMessage := settings.DepsBackupLimitInputErr
-	if errMessage == "" && settings.DepsBackupLimitInput.Err != nil {
-		errMessage = settings.DepsBackupLimitInput.Err.Error()
+func renderDepsBackupLimitDialog(t styles.Theme, settings settingsTab, viewport viewportSize) string {
+	errMessage := settings.depsBackupLimitInputErr
+	if errMessage == "" && settings.depsBackupLimitInput.Err != nil {
+		errMessage = settings.depsBackupLimitInput.Err.Error()
 	}
 
 	lines := []string{
@@ -22,7 +22,7 @@ func renderDepsBackupLimitDialog(t styles.Theme, settings SettingsState, viewpor
 			config.MinDepsBackupLimit,
 			config.MaxDepsBackupLimit,
 		)),
-		t.DialogBodyStyle.Render(settings.DepsBackupLimitInput.View()),
+		t.DialogBodyStyle.Render(settings.depsBackupLimitInput.View()),
 	}
 	if errMessage != "" {
 		lines = append(lines, t.DialogWarningStyle.Render(errMessage))
@@ -40,12 +40,12 @@ func renderDepsBackupLimitDialog(t styles.Theme, settings SettingsState, viewpor
 	)
 }
 
-func renderDistributionSourceDialog(t styles.Theme, settings SettingsState, viewport viewportSize) string {
-	errMessage := settings.DistributionSourceInputErr
-	if errMessage == "" && settings.DistributionSourceInput.Err != nil {
-		errMessage = settings.DistributionSourceInput.Err.Error()
+func renderDistributionSourceDialog(t styles.Theme, settings settingsTab, viewport viewportSize) string {
+	errMessage := settings.distributionSourceInputErr
+	if errMessage == "" && settings.distributionSourceInput.Err != nil {
+		errMessage = settings.distributionSourceInput.Err.Error()
 	}
-	if settings.CheckingDistributionSource {
+	if settings.checkingDistributionSource {
 		errMessage = "Checking distribution source..."
 	}
 
@@ -53,7 +53,7 @@ func renderDistributionSourceDialog(t styles.Theme, settings SettingsState, view
 		t.DialogTitleStyle.Render("Set distribution source"),
 		"",
 		t.DialogBodyStyle.Render("Enter an HTTPS base URL for the catalog and archives."),
-		t.DialogBodyStyle.Render(settings.DistributionSourceInput.View()),
+		t.DialogBodyStyle.Render(settings.distributionSourceInput.View()),
 	}
 	if errMessage != "" {
 		lines = append(lines, t.DialogWarningStyle.Render(errMessage))

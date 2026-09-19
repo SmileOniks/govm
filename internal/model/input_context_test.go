@@ -13,8 +13,8 @@ import (
 // The Input context is well defined only while at most one is set.
 func activeModeFlags(m *Model) int {
 	flags := []bool{
-		m.Settings.EditingDistributionSource,
-		m.Settings.EditingDepsBackupLimit,
+		m.settings.editingDistributionSource,
+		m.settings.editingDepsBackupLimit,
 		m.HelpVisible,
 		m.deps.dialog.active(),
 		m.Prune.Confirming(),
@@ -97,8 +97,7 @@ func TestInputContextResolvesEachState(t *testing.T) {
 		{
 			name: "settings backup limit input",
 			setup: func(t *testing.T, m Model) Model {
-				m.CurrentTab = SettingsTab
-				m.Settings.Cursor = 2
+				m = focusSetting(t, m, settingRowDepsBackups)
 				return pressKey(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 			},
 			want: inputSettingsInput,
@@ -106,8 +105,7 @@ func TestInputContextResolvesEachState(t *testing.T) {
 		{
 			name: "settings distribution source input",
 			setup: func(t *testing.T, m Model) Model {
-				m.CurrentTab = SettingsTab
-				m.Settings.Cursor = 3
+				m = focusSetting(t, m, settingRowDistributionSource)
 				return pressKey(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 			},
 			want: inputSettingsInput,
@@ -148,7 +146,7 @@ func TestInputContextPriorityWhenFlagsOverlap(t *testing.T) {
 		t.Fatalf("inputContextBeneathHelp() = %s, want deps dialog", got)
 	}
 
-	m.Settings.EditingDepsBackupLimit = true
+	m.settings.editingDepsBackupLimit = true
 	if got := m.inputContext(); got != inputSettingsInput {
 		t.Fatalf("settings input above help: inputContext() = %s, want settings input", got)
 	}

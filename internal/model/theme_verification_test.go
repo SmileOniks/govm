@@ -103,7 +103,7 @@ func TestInitIsGoneFromDialog(t *testing.T) {
 func TestModelNewRequiresTheme(t *testing.T) {
 	t.Parallel()
 
-	m := New("", "", config.DefaultSettings(), "", styles.NewTheme(config.ThemeCurrent))
+	m := New("", config.DefaultSettings(), newMemorySettingsStore(config.DefaultSettings()), "", styles.NewTheme(config.ThemeCurrent))
 	if got := m.theme.Primary; got == nil {
 		t.Fatal("Model.New did not store the provided theme")
 	}
@@ -167,7 +167,7 @@ func TestApplyRuntimeThemePropagatesToComponents(t *testing.T) {
 	currentInstalledOut := m.projection.installedView()
 	currentDepsOut := m.deps.table.View()
 
-	m.Settings.Values.Theme = config.ThemeLight
+	m.settings.values.Theme = config.ThemeLight
 	m.applyRuntimeTheme()
 
 	if got := m.theme.Primary; got != lightPrimary {

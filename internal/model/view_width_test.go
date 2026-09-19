@@ -57,10 +57,9 @@ func TestViewRespectsTerminalWidth(t *testing.T) {
 		},
 		{
 			name: "backup limit dialog",
-			setup: func(_ *testing.T, m *Model) {
-				m.CurrentTab = SettingsTab
-				m.Settings.Cursor = 2
-				m.Settings.OpenDepsBackupLimitInput()
+			setup: func(t *testing.T, m *Model) {
+				*m = focusSetting(t, *m, settingRowDepsBackups)
+				*m = press(t, *m, tea.KeyPressMsg{Code: tea.KeyEnter})
 			},
 		},
 	}
@@ -132,10 +131,9 @@ func TestOverlayModalsRespectPhysicalViewport(t *testing.T) {
 		},
 		{
 			name: "dependency backup limit",
-			setup: func(_ *testing.T, m *Model) {
-				m.CurrentTab = SettingsTab
-				m.Settings.Cursor = 2
-				m.Settings.OpenDepsBackupLimitInput()
+			setup: func(t *testing.T, m *Model) {
+				*m = focusSetting(t, *m, settingRowDepsBackups)
+				*m = press(t, *m, tea.KeyPressMsg{Code: tea.KeyEnter})
 			},
 		},
 	}

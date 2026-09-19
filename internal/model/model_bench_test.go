@@ -51,7 +51,7 @@ func benchModel(b *testing.B) Model {
 		})
 	}
 
-	m := New("", "", config.DefaultSettings(), "", styles.NewTheme(config.ThemeCurrent))
+	m := New("", config.DefaultSettings(), newMemorySettingsStore(config.DefaultSettings()), "", styles.NewTheme(config.ThemeCurrent))
 	if cmd, err := replaceVersions(&m, versions); err != nil {
 		b.Fatalf("replaceVersions: %v", err)
 	} else {

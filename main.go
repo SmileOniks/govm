@@ -235,7 +235,7 @@ func launchTUI(runtime *services.Runtime, distributionSource *application.Distri
 		os.Exit(1)
 	}
 
-	initialModel := model.New(moduleDir, settingsPath, settings, shimPathWarning, theme).
+	initialModel := model.New(moduleDir, settings, config.FileStore{Path: settingsPath}, shimPathWarning, theme).
 		BindVersionOperations(model.VersionOperations{
 			LoadCatalog:         runtime.Loader.LoadVersions,
 			DistributionSource:  distributionSource.Change,

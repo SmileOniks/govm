@@ -2,9 +2,7 @@ package model
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"os"
 	"strings"
 	"testing"
 
@@ -30,7 +28,7 @@ func (s *stubUpgradeChecker) check(context.Context) (upgrade.Notice, bool, error
 func newUpgradeTestModel(t *testing.T, checker *stubUpgradeChecker, mode config.UpgradeNoticeMode) Model {
 	t.Helper()
 	m := newTestModel(t)
-	m.Settings.Values.UpgradeNotice = mode
+	m.settings.values.UpgradeNotice = mode
 	if checker != nil {
 		m = m.BindVersionOperations(VersionOperations{CheckUpgrade: checker.check})
 	}
@@ -168,8 +166,7 @@ func TestUpgradeCheckRunsOncePerSession(t *testing.T) {
 	if cmd != nil {
 		t.Fatal("second start message issued another lookup")
 	}
-	m.CurrentTab = SettingsTab
-	m.Settings.Cursor = 4
+	m = focusSetting(t, m, settingRowUpgradeNotice)
 	for _, key := range []tea.KeyPressMsg{{Code: tea.KeyEnter}, {Code: tea.KeyEnter}} {
 		updated, cmd = m.Update(key)
 		m = updated.(Model)
@@ -188,32 +185,23 @@ func TestUpgradeCheckRunsOncePerSession(t *testing.T) {
 func TestSettingsToggleUpgradeNoticeOffHidesNoticeAndSaves(t *testing.T) {
 	m := newUpgradeTestModel(t, nil, config.UpgradeNoticeOn)
 	m.upgradeNotice = "v0.2.5"
-	m.CurrentTab = SettingsTab
-	m.Settings.Cursor = 4
+	m = focusSetting(t, m, settingRowUpgradeNotice)
 
 	for _, key := range []tea.KeyPressMsg{{Code: tea.KeyEnter}, {Code: tea.KeyLeft}, {Code: 'l'}, {Code: tea.KeySpace}} {
-		m.Settings.Values.UpgradeNotice = config.UpgradeNoticeOn
+		m.settings.values.UpgradeNotice = config.UpgradeNoticeOn
 		m.upgradeNotice = "v0.2.5"
 		updated, _ := m.Update(key)
 		m = updated.(Model)
-		if m.Settings.Values.UpgradeNotice != config.UpgradeNoticeOff {
-			t.Fatalf("after %q UpgradeNotice setting = %q, want off", key.String(), m.Settings.Values.UpgradeNotice)
+		if m.settings.values.UpgradeNotice != config.UpgradeNoticeOff {
+			t.Fatalf("after %q UpgradeNotice setting = %q, want off", key.String(), m.settings.values.UpgradeNotice)
 		}
 		if m.UpgradeNotice() != "" {
 			t.Fatalf("after %q the notice is still showing: %q", key.String(), m.UpgradeNotice())
 		}
 	}
 
-	data, err := os.ReadFile(m.Settings.Path)
-	if err != nil {
-		t.Fatalf("read saved settings JSON: %v", err)
-	}
-	var saved config.Settings
-	if err := json.Unmarshal(data, &saved); err != nil {
-		t.Fatalf("unmarshal saved settings JSON: %v", err)
-	}
-	if saved.UpgradeNotice != config.UpgradeNoticeOff {
-		t.Fatalf("saved upgradeNotice = %q, want off", saved.UpgradeNotice)
+	if saved := settingsStore(m).values.UpgradeNotice; saved != config.UpgradeNoticeOff {
+		t.Fatalf("saved upgradeNotice = %q, want off", saved)
 	}
 	if !strings.Contains(stripANSI(m.View().Content), "Upgrade notice: Off") {
 		t.Fatalf("settings view does not show the row as Off:\n%s", stripANSI(m.View().Content))
@@ -226,13 +214,12 @@ func TestSettingsToggleUpgradeNoticeOnStartsSingleCheck(t *testing.T) {
 	if m.initialUpgradeCheckCmd() != nil {
 		t.Fatal("initial check must not run while the setting is off")
 	}
-	m.CurrentTab = SettingsTab
-	m.Settings.Cursor = 4
+	m = focusSetting(t, m, settingRowUpgradeNotice)
 
 	updated, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = updated.(Model)
-	if m.Settings.Values.UpgradeNotice != config.UpgradeNoticeOn {
-		t.Fatalf("UpgradeNotice setting = %q, want on", m.Settings.Values.UpgradeNotice)
+	if m.settings.values.UpgradeNotice != config.UpgradeNoticeOn {
+		t.Fatalf("UpgradeNotice setting = %q, want on", m.settings.values.UpgradeNotice)
 	}
 	if cmd == nil {
 		t.Fatal("switching the setting on must start the session's check")
@@ -249,21 +236,20 @@ func TestSettingsToggleUpgradeNoticeOnStartsSingleCheck(t *testing.T) {
 
 func TestSettingsCursorReachesUpgradeNoticeRow(t *testing.T) {
 	m := newTestModel(t)
-	m.CurrentTab = SettingsTab
-	m.Settings.Cursor = 3
+	m = focusSetting(t, m, settingRowDistributionSource)
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m = updated.(Model)
-	if m.Settings.Cursor != 4 {
-		t.Fatalf("cursor = %d, want 4", m.Settings.Cursor)
+	if m.settings.cursor != settingRowUpgradeNotice {
+		t.Fatalf("cursor = %d, want %d", m.settings.cursor, settingRowUpgradeNotice)
 	}
 	if !strings.Contains(stripANSI(m.View().Content), "> Upgrade notice: On") {
 		t.Fatalf("settings view does not highlight the Upgrade notice row:\n%s", stripANSI(m.View().Content))
 	}
 	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m = updated.(Model)
-	if m.Settings.Cursor != 0 {
-		t.Fatalf("cursor = %d after wrapping, want 0", m.Settings.Cursor)
+	if m.settings.cursor != settingRowDepsDisplay {
+		t.Fatalf("cursor = %d after wrapping, want %d", m.settings.cursor, settingRowDepsDisplay)
 	}
 }
 

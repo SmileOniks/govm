@@ -62,7 +62,7 @@ func CheckUpgradeCmd(check checkUpgradeFunc) tea.Cmd {
 // upgradeNoticeEnabled reports the current value of the Settings
 // toggle after normalisation.
 func (m Model) upgradeNoticeEnabled() bool {
-	return m.normalizedSettings().UpgradeNotice == config.UpgradeNoticeOn
+	return m.settings.values.UpgradeNotice == config.UpgradeNoticeOn
 }
 
 // initialUpgradeCheckCmd returns the message that kicks off the

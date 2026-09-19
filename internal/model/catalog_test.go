@@ -310,7 +310,7 @@ func TestThemeToggleRefreshesRenderedTitle(t *testing.T) {
 	oldTitle := it0.RenderedTitle
 
 	// Toggle to the light theme.
-	m.Settings.Values.Theme = config.ThemeLight
+	m.settings.values.Theme = config.ThemeLight
 	m.applyRuntimeTheme()
 
 	// The cached RenderedTitle must reflect the new theme.

@@ -61,7 +61,7 @@ func (m Model) View() tea.View {
 	case DepsTab:
 		components = append(components, renderContentCanvas(m.deps.view(), width, height))
 	case SettingsTab:
-		components = append(components, renderContentCanvas(renderSettingsView(m.Settings), width, height))
+		components = append(components, renderContentCanvas(m.settings.view(), width, height))
 	}
 
 	if status, statusType := m.composeStatus(); status != "" {
@@ -75,10 +75,10 @@ func (m Model) View() tea.View {
 	// drawn first; the overlay, when open, sits on top of it.
 	switch m.inputContextBeneathHelp() {
 	case inputSettingsInput:
-		if m.Settings.EditingDistributionSource {
-			rendered = overlayDialog(rendered, renderDistributionSourceDialog(t, m.Settings, viewport), viewport)
+		if m.settings.editingSource() {
+			rendered = overlayDialog(rendered, renderDistributionSourceDialog(t, m.settings, viewport), viewport)
 		} else {
-			rendered = overlayDialog(rendered, renderDepsBackupLimitDialog(t, m.Settings, viewport), viewport)
+			rendered = overlayDialog(rendered, renderDepsBackupLimitDialog(t, m.settings, viewport), viewport)
 		}
 	case inputDepsDialog:
 		rendered = overlayDialog(rendered, m.deps.dialogView(t, viewport), viewport)
@@ -308,8 +308,10 @@ func renderStatus(t styles.Theme, messageType, message string, width int) string
 	return style.Width(width).Render(fmt.Sprintf("%s %s", icon, message))
 }
 
-func renderSettingsView(settings SettingsState) string {
-	values := config.Normalize(settings.Values)
+// renderSettingsView renders the rows of the Settings tab; the tab
+// owns it and the Model reaches it through view().
+func renderSettingsView(settings settingsTab) string {
+	values := settings.values
 	rows := []string{
 		fmt.Sprintf("Deps display: %s", depsDisplayLabel(values.DepsDisplay)),
 		fmt.Sprintf("Theme: %s", themeLabel(values.Theme)),
@@ -317,12 +319,12 @@ func renderSettingsView(settings SettingsState) string {
 		fmt.Sprintf("Distribution source: %s", truncateSettingValue(values.DistributionSource, 48)),
 		fmt.Sprintf("Upgrade notice: %s", upgradeNoticeLabel(values.UpgradeNotice)),
 	}
-	for i, row := range rows {
+	for i, kind := range settingRows {
 		prefix := "  "
-		if i == settings.Cursor {
+		if kind == settings.cursor {
 			prefix = "> "
 		}
-		rows[i] = prefix + row
+		rows[i] = prefix + rows[i]
 	}
 	return strings.Join(rows, "\n")
 }

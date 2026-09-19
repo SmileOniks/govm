@@ -1,9 +1,7 @@
 package model
 
 import (
-	"errors"
 	"fmt"
-	"strconv"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/smileoniks-ctrl/govm/internal/config"
@@ -37,7 +35,7 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m, m.projection.updateAvailable(msg)
 	}
 	if m.CurrentTab == SettingsTab {
-		return m.handleSettingsKey(msg)
+		return m.delegateSettings(msg)
 	}
 	if m.projection.operationPhase() == catalogOperationPhaseMutating {
 		switch msg.String() {
@@ -347,229 +345,82 @@ func (m *Model) handlePruneConfirmNo() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *Model) handleSettingsKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-	switch msg.String() {
-	case "up", "k":
-		m.Settings.MoveUp()
-	case "down", "j":
-		m.Settings.MoveDown()
-	case "enter", "space":
-		if m.Settings.Cursor == 2 {
-			return m, m.Settings.OpenDepsBackupLimitInput()
-		}
-		if m.Settings.Cursor == 3 {
-			return m, m.Settings.OpenDistributionSourceInput()
-		}
-		cmd = m.toggleSelectedSetting()
-	case "left", "h":
-		if m.Settings.Cursor == 2 {
-			m.adjustDepsBackupLimit(-1)
-		} else if m.Settings.Cursor == 3 {
-			return m, m.Settings.OpenDistributionSourceInput()
-		} else {
-			cmd = m.toggleSelectedSetting()
-		}
-	case "right", "l":
-		if m.Settings.Cursor == 2 {
-			m.adjustDepsBackupLimit(1)
-		} else if m.Settings.Cursor == 3 {
-			return m, m.Settings.OpenDistributionSourceInput()
-		} else {
-			cmd = m.toggleSelectedSetting()
-		}
-	}
-	return m, cmd
+// delegateSettings routes msg to the Settings tab and applies its
+// effect (see ADR-0004).
+func (m *Model) delegateSettings(msg tea.Msg) (tea.Model, tea.Cmd) {
+	cmd, status := m.settings.update(msg)
+	effCmd := m.applySettingsStatus(status)
+	return m, tea.Batch(cmd, effCmd)
 }
 
-func (m *Model) handleDistributionSourceInputKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if m.Settings.CheckingDistributionSource {
-		if msg.String() == "esc" {
-			outcome := m.projection.failLoad(
-				m.Settings.DistributionSourceRequestID,
-				errors.New("distribution source check canceled"),
-			)
-			m.Settings.CloseDistributionSourceInput()
-			return m.handleCatalogOutcome(outcome)
-		}
-		return m, nil
+// applySettingsStatus enacts a settingsStatus: the status line part,
+// then the rare notifications — the saved values reaching every
+// consumer, the runtime theme rebuild, the distribution-source check
+// handshake with the catalog projection, and the upgrade notice
+// check. It returns the command the notifications spawn, if any.
+func (m *Model) applySettingsStatus(status settingsStatus) tea.Cmd {
+	switch status.scope {
+	case settingsStatusTab:
+		m.Status.SetTab(status.text, status.kind)
+	case settingsStatusGlobal:
+		m.Status.SetGlobal(status.text, status.kind)
 	}
-
-	switch msg.String() {
-	case "esc":
-		m.Settings.CloseDistributionSourceInput()
-		return m, nil
-	case "r":
-		m.Settings.DistributionSourceInput.SetValue(config.DefaultDistributionSource)
-		m.Settings.DistributionSourceInputErr = ""
-		return m.beginDistributionSourceCheck()
-	case "enter":
-		if err := m.Settings.DistributionSourceInput.Err; err != nil {
-			m.Settings.DistributionSourceInputErr = err.Error()
-			return m, nil
-		}
-		return m.beginDistributionSourceCheck()
-	default:
-		var cmd tea.Cmd
-		m.Settings.DistributionSourceInput, cmd = m.Settings.DistributionSourceInput.Update(msg)
-		m.Settings.DistributionSourceInputErr = ""
-		return m, cmd
+	if status.valuesChanged {
+		m.deps.applySettings(m.settings.values)
 	}
-}
-
-func (m *Model) beginDistributionSourceCheck() (tea.Model, tea.Cmd) {
-	source, err := config.ValidateDistributionSource(m.Settings.DistributionSourceInput.Value())
-	if err != nil {
-		m.Settings.DistributionSourceInputErr = err.Error()
-		return m, nil
+	if status.themeChanged {
+		m.applyRuntimeTheme()
 	}
-	outcome := m.projection.startLoad(catalogLoadPurposeRefresh)
-	if outcome.kind != catalogProjectionOutcomeLoadStarted {
-		m.Settings.DistributionSourceInputErr = "cannot check distribution source while another operation is active"
-		return m, nil
+	if status.upgradeNoticeOn {
+		return m.startUpgradeCheck()
 	}
-	m.Settings.CheckingDistributionSource = true
-	m.Settings.DistributionSourceRequestID = outcome.loadRequest.ID
-	m.Status.SetGlobal("Checking distribution source...", "warning")
-	return m, ChangeDistributionSourceCmd(m.distributionSource, outcome.loadRequest, source)
-}
-
-func (m *Model) handleDistributionSourceValidation(msg distributionSourceValidatedMsg) (tea.Model, tea.Cmd) {
-	if !m.Settings.CheckingDistributionSource ||
-		msg.RequestID != m.Settings.DistributionSourceRequestID {
-		return m, nil
+	if status.upgradeNoticeOff {
+		m.upgradeNotice = ""
+		return nil
 	}
-	if msg.Err != nil {
-		m.Settings.CheckingDistributionSource = false
-		m.Settings.DistributionSourceInputErr = msg.Err.Error()
-		outcome := m.projection.failLoad(msg.RequestID, msg.Err)
-		m.handleCatalogOutcome(outcome)
-		return m, nil
+	if status.beginSourceCheck {
+		outcome := m.projection.startLoad(catalogLoadPurposeRefresh)
+		if outcome.kind != catalogProjectionOutcomeLoadStarted {
+			m.settings.update(sourceCheckRejectedMsg{reason: "cannot check distribution source while another operation is active"})
+			return nil
+		}
+		m.settings.update(sourceCheckStartedMsg{requestID: outcome.loadRequest.ID})
+		m.Status.SetGlobal("Checking distribution source...", "warning")
+		request := sourceCheckRequest{requestID: outcome.loadRequest.ID, source: status.source}
+		m.pendingSourceCheck = append(m.pendingSourceCheck, request)
+		return ChangeDistributionSourceCmd(m.distributionSource, outcome.loadRequest, status.source)
 	}
-
-	previous := m.Settings.Values
-	next := previous
-	next.DistributionSource = msg.Result.Source
-	m.Settings.Values = next
-	m.Settings.CloseDistributionSourceInput()
-	outcome := m.projection.acceptLoad(msg.RequestID, msg.Result.Catalog.Versions)
-	if outcome.kind == catalogProjectionOutcomeRejected {
-		m.Settings.Values = previous
-		m.Settings.OpenDistributionSourceInput()
-		m.Settings.DistributionSourceInputErr = fmt.Sprintf("Failed to apply catalog: %v", outcome.err)
-		return m, nil
+	if status.failSourceCheck {
+		m.handleCatalogOutcome(m.projection.failLoad(status.requestID, status.err))
+		return nil
 	}
-	m.Status.SetTab("Settings saved.", "info")
-	return m, outcome.cmd
-}
-
-func (m *Model) toggleSelectedSetting() tea.Cmd {
-	m.Settings.Values = config.Normalize(m.Settings.Values)
-	var cmd tea.Cmd
-	switch m.Settings.Cursor {
-	case 0:
-		if m.Settings.Values.DepsDisplay == config.DepsDisplayDirect {
-			m.Settings.Values.DepsDisplay = config.DepsDisplayAll
-		} else {
-			m.Settings.Values.DepsDisplay = config.DepsDisplayDirect
+	if status.acceptCatalog {
+		outcome := m.projection.acceptLoad(status.requestID, status.versions)
+		if outcome.kind == catalogProjectionOutcomeRejected {
+			m.settings.update(sourceCheckRejectedMsg{reason: fmt.Sprintf("Failed to apply catalog: %v", outcome.err)})
+			return nil
 		}
-		m.syncDepsSettings()
-	case 1:
-		if m.Settings.Values.Theme == config.ThemeCurrent {
-			m.Settings.Values.Theme = config.ThemeLight
-		} else {
-			m.Settings.Values.Theme = config.ThemeCurrent
-		}
-		cmd = m.applyRuntimeTheme()
-	case 4:
-		if m.Settings.Values.UpgradeNotice == config.UpgradeNoticeOn {
-			m.Settings.Values.UpgradeNotice = config.UpgradeNoticeOff
-			m.upgradeNotice = ""
-		} else {
-			m.Settings.Values.UpgradeNotice = config.UpgradeNoticeOn
-			cmd = m.startUpgradeCheck()
-		}
-	}
-	m.saveSettings()
-	return cmd
-}
-
-func (m *Model) adjustDepsBackupLimit(delta int) {
-	limit := m.Settings.Values.DepsBackupLimit + delta
-	if limit < config.MinDepsBackupLimit {
-		limit = config.MaxDepsBackupLimit
-	} else if limit > config.MaxDepsBackupLimit {
-		limit = config.MinDepsBackupLimit
-	}
-	m.Settings.Values.DepsBackupLimit = limit
-	m.syncDepsSettings()
-	m.saveSettings()
-}
-
-func (m *Model) handleDepsBackupLimitInputKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "esc":
-		m.Settings.CloseDepsBackupLimitInput()
-		return m, nil
-	case "enter":
-		if err := m.Settings.DepsBackupLimitInput.Err; err != nil {
-			m.Settings.DepsBackupLimitInputErr = err.Error()
-			return m, nil
-		}
-
-		limit, err := strconv.Atoi(m.Settings.DepsBackupLimitInput.Value())
-		if err != nil {
-			m.Settings.DepsBackupLimitInputErr = "Enter a whole number."
-			return m, nil
-		}
-		if err := config.ValidateDepsBackupLimit(limit); err != nil {
-			m.Settings.DepsBackupLimitInputErr = err.Error()
-			return m, nil
-		}
-
-		values := m.Settings.Values
-		values.DepsBackupLimit = limit
-		if err := config.Save(m.Settings.Path, values); err != nil {
-			m.Settings.DepsBackupLimitInputErr = fmt.Sprintf("Failed to save settings: %v", err)
-			return m, nil
-		}
-
-		m.Settings.Values = values
-		m.Settings.CloseDepsBackupLimitInput()
 		m.Status.SetTab("Settings saved.", "info")
-		return m, nil
-	default:
-		var cmd tea.Cmd
-		m.Settings.DepsBackupLimitInput, cmd = m.Settings.DepsBackupLimitInput.Update(msg)
-		m.Settings.DepsBackupLimitInputErr = ""
-		return m, cmd
+		return outcome.cmd
 	}
+	return nil
 }
 
-// applyRuntimeTheme rebuilds m.theme from the user's current settings
-// value and propagates the new theme to every component that caches
-// style values by value (Spinner, installedTable, the Deps tab's
-// table, List delegate). It also forwards the theme to the catalog and, when the
-// catalog accepts it, re-applies the version projection so the list
-// items pick up the new pre-rendered titles. The returned tea.Cmd
-// propagates the asynchronous refilter (if any) through the settings
-// key flow. Replaces the previous "mutate package-level globals and
-// hope readers pick them up" model with explicit value propagation.
-func (m *Model) applyRuntimeTheme() tea.Cmd {
-	t := styles.NewTheme(config.ThemeName(m.Settings.Values.Theme))
+// applyRuntimeTheme rebuilds m.theme from the Settings values and
+// propagates the new theme to every component that caches style
+// values by value (Spinner, installedTable, the Deps tab's table,
+// List delegate). It also forwards the theme to the catalog and, when
+// the catalog accepts it, re-applies the version projection so the
+// list items pick up the new pre-rendered titles. Replaces the
+// previous "mutate package-level globals and hope readers pick them
+// up" model with explicit value propagation.
+func (m *Model) applyRuntimeTheme() {
+	t := styles.NewTheme(config.ThemeName(m.settings.values.Theme))
 	m.theme = t
-	m.Settings.ApplyTheme()
+	m.settings.applyTheme(config.ThemeName(m.settings.values.Theme))
 	m.Spinner.Style = t.SpinnerStyle
 	m.deps.applyTheme(t)
-	return m.projection.setTheme(t).cmd
-}
-
-func (m *Model) saveSettings() {
-	if err := config.Save(m.Settings.Path, m.Settings.Values); err != nil {
-		m.Status.SetTab(fmt.Sprintf("Failed to save settings: %v", err), "error")
-		return
-	}
-	m.Status.SetTab("Settings saved.", "info")
+	m.projection.setTheme(t)
 }
 
 func (m *Model) handleDeleteConfirmYes() (tea.Model, tea.Cmd) {

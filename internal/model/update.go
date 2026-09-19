@@ -21,13 +21,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-	// A focused Settings input also receives non-key messages (cursor
-	// blink), which then continue to the ordinary handlers below.
+	// A focused Settings input receives non-key messages (cursor
+	// blink) here; key presses are dispatched once, by the Input
+	// context switch below.
 	if m.inputContext() == inputSettingsInput {
 		if key, ok := msg.(tea.KeyPressMsg); ok {
-			return m.handleSettingsInputKey(key)
+			return m.delegateSettings(key)
 		}
-		cmds = append(cmds, m.updateSettingsInput(msg))
+		cmd, status := m.settings.update(msg)
+		effCmd := m.applySettingsStatus(status)
+		cmds = append(cmds, cmd, effCmd)
 	}
 
 	// The Deps tab's own results reach it whatever the current tab.
@@ -48,7 +51,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// input_context.go for the priority order.
 		switch m.inputContext() {
 		case inputSettingsInput:
-			return m.handleSettingsInputKey(msg)
+			return m.delegateSettings(msg)
 		case inputHelpOverlay:
 			return m.handleHelpOverlayKey(msg)
 		case inputDepsDialog:
@@ -96,7 +99,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleCatalogOutcome(m.projection.failLoad(msg.RequestID, msg.Err))
 
 	case distributionSourceValidatedMsg:
-		return m.handleDistributionSourceValidation(msg)
+		return m.delegateSettings(msg)
 
 	case upgradeCheckStartMsg:
 		return m, m.startUpgradeCheck()

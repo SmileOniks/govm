@@ -54,8 +54,7 @@ func TestDependencyTableColumns(t *testing.T) {
 
 func TestDependencyTableIndirectUpdateStatus(t *testing.T) {
 	m := newTestModel(t)
-	m.Settings.Values.DepsDisplay = config.DepsDisplayAll
-	m.syncDepsSettings()
+	m.deps.applySettings(config.Settings{DepsDisplay: config.DepsDisplayAll})
 
 	deps := dependenciesMsg{
 		{Path: "indirect-with-update", Version: "v0.5.0", Latest: "v0.6.0", Indirect: true},
@@ -125,8 +124,7 @@ func TestDependencyTableColumns_AllLayouts(t *testing.T) {
 
 func TestUpdateDependencyTable_StatusPriorities(t *testing.T) {
 	m := newTestModel(t)
-	m.Settings.Values.DepsDisplay = config.DepsDisplayAll
-	m.syncDepsSettings()
+	m.deps.applySettings(config.Settings{DepsDisplay: config.DepsDisplayAll})
 
 	deps := dependenciesMsg{
 		{Path: "err", Version: "v1.0.0", Latest: "v1.1.0", Error: "boom"},

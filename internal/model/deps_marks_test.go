@@ -25,8 +25,8 @@ func marksFixture(t *testing.T) Model {
 	return loadDeps(t, newTestModel(t), marksList())
 }
 
-func press(t *testing.T, m Model, keys ...tea.KeyPressMsg) Model {
-	t.Helper()
+func press(tb testing.TB, m Model, keys ...tea.KeyPressMsg) Model {
+	tb.Helper()
 	for _, k := range keys {
 		updated, _ := m.Update(k)
 		m = updated.(Model)
@@ -120,8 +120,7 @@ func TestMarkAllMarksEveryListedRowInBothDisplayModes(t *testing.T) {
 	}
 	for display, want := range wants {
 		m := marksFixture(t)
-		m.Settings.Values.DepsDisplay = display
-		m.syncDepsSettings()
+		m.deps.applySettings(config.Settings{DepsDisplay: display})
 		m = press(t, m, tea.KeyPressMsg{Code: 'a'})
 		if got := m.deps.markedPaths(); strings.Join(got, ",") != strings.Join(want, ",") {
 			t.Fatalf("display %v: marks = %v, want %v", display, got, want)
@@ -158,8 +157,7 @@ func TestMarksSurviveRefreshAndDisplayToggle(t *testing.T) {
 	if !m.deps.marked("example.com/a") {
 		t.Fatal("mark lost after dependenciesMsg")
 	}
-	m.Settings.Values.DepsDisplay = config.DepsDisplayAll
-	m.syncDepsSettings()
+	m.deps.applySettings(config.Settings{DepsDisplay: config.DepsDisplayAll})
 	if !m.deps.marked("example.com/a") || !strings.HasPrefix(m.deps.table.Rows()[0][0], markFilled) {
 		t.Fatal("mark lost after display toggle")
 	}
@@ -173,15 +171,13 @@ func TestMarksSurviveRefreshAndDisplayToggle(t *testing.T) {
 
 func TestDisplayToggleNeverTouchesMarks(t *testing.T) {
 	m := marksFixture(t)
-	m.Settings.Values.DepsDisplay = config.DepsDisplayAll
-	m.syncDepsSettings()
+	m.deps.applySettings(config.Settings{DepsDisplay: config.DepsDisplayAll})
 	// Mark the indirect module, then hide it again.
 	m = press(t, m, tea.KeyPressMsg{Code: 'j'}, tea.KeyPressMsg{Code: tea.KeySpace})
 	if !m.deps.marked("example.com/hidden") {
 		t.Fatalf("marks = %v, want hidden marked", m.deps.marks)
 	}
-	m.Settings.Values.DepsDisplay = config.DepsDisplayDirect
-	m.syncDepsSettings()
+	m.deps.applySettings(config.Settings{DepsDisplay: config.DepsDisplayDirect})
 	if !m.deps.marked("example.com/hidden") {
 		t.Fatal("hiding a marked module must not drop its mark")
 	}

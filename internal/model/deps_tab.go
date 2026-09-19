@@ -307,9 +307,3 @@ func (m *Model) delegateDeps(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.applyDepsStatus(status)
 	return m, cmd
 }
-
-// syncDepsSettings pushes the current Settings values to the Deps tab.
-// Call it after any change to Settings.Values.
-func (m *Model) syncDepsSettings() {
-	m.deps.applySettings(m.Settings.Values)
-}

@@ -214,13 +214,12 @@ func TestViewReportsMinimumViewportSize(t *testing.T) {
 
 func TestSettingsBackupLimitDialogFitsMinimumViewport(t *testing.T) {
 	m := newTestModel(t)
-	m.CurrentTab = SettingsTab
-	m.Settings.Cursor = 2
+	m = focusSetting(t, m, settingRowDepsBackups)
 
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 64, Height: 20})
 	m = updated.(Model)
-	m.Settings.OpenDepsBackupLimitInput()
-	m.Settings.DepsBackupLimitInput.SetValue("0")
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
+	m.settings.depsBackupLimitInput.SetValue("0")
 	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = updated.(Model)
 

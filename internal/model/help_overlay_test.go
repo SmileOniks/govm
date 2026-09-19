@@ -157,8 +157,10 @@ func TestHelpOverlayNotAvailableInMinimumViewport(t *testing.T) {
 
 func TestHelpOverlayNotAvailableInTextInput(t *testing.T) {
 	m := newTestModel(t)
-	m.CurrentTab = SettingsTab
-	m.Settings.OpenDepsBackupLimitInput()
+	// Open the limit editor the way the user does: navigate to the
+	// Deps backups row and press enter.
+	m = focusSetting(t, m, settingRowDepsBackups)
+	m = pressKey(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 
 	// "?" is ordinary input while a text field has focus: the overlay
 	// must not open. The numeric validator rejects the character, but

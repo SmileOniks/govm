@@ -64,11 +64,16 @@ type Model struct {
 	// the styles package no longer carries any package-level state.
 	theme styles.Theme
 
-	// Deps groups every field and state machine flag related to the
-	// "Deps" tab. Use the helpers in deps_state.go to keep the
-	// main Model surface small.
+	// Settings groups the Settings tab (see ADR-0004); use the entry
+	// points in settings_tab.go.
+	settings settingsTab
 	deps     depsTab
-	Settings SettingsState
+
+	// pendingSourceCheck correlates the distribution-source checks the
+	// Settings tab starts with the ChangeDistributionSourceCmd runs
+	// they spawn: the cmd must carry the catalog load request the
+	// projection opened for the check.
+	pendingSourceCheck []sourceCheckRequest
 
 	loadCatalog         loadCatalogFunc
 	distributionSource  changeDistributionSourceFunc
@@ -149,16 +154,18 @@ func (m Model) Theme() styles.Theme { return m.theme }
 // New builds the top-level Model for the TUI. It owns the invariant
 // setup that every caller needs: the spinner, the installed-versions
 // table (columns + height + styles), the version list and its
-// delegate, the Deps tab and the Settings sub-state.
+// delegate, the Deps tab and the Settings tab. The settings store is
+// bound here, once: a Model without it cannot exist, so there is no
+// unbound branch to defend against.
 //
 // The theme parameter is the immutable styles.Theme value built by the
-// caller (main.go at startup, applyRuntimeTheme on toggle, tests
+// caller (main.go at startup, the theme effect on toggle, tests
 // directly). Passing it as a parameter replaces the previous implicit
 // "call ApplyTheme before New" contract — it is now impossible to
 // construct a Model without its theme, which removes the fragile
 // init() → ApplyTheme → New ordering that previously broke silently
 // when a new dialog style was added.
-func New(moduleDir, settingsPath string, settings config.Settings, shimPathWarning string, theme styles.Theme) Model {
+func New(moduleDir string, settings config.Settings, store config.Store, shimPathWarning string, theme styles.Theme) Model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = theme.SpinnerStyle
@@ -173,10 +180,10 @@ func New(moduleDir, settingsPath string, settings config.Settings, shimPathWarni
 		Layout:          styles.LayoutNormal,
 		theme:           theme,
 		deps:            newDepsTab(moduleDir, theme),
-		Settings:        NewSettingsState(settingsPath, settings),
+		settings:        newSettingsTab(settings, store),
 		ShimPathWarning: shimPathWarning,
 	}
-	m.syncDepsSettings()
+	m.deps.applySettings(m.settings.values)
 	return m
 }
 
@@ -270,8 +277,4 @@ func (m Model) viewWidth() int {
 		return available.Width()
 	}
 	return 80
-}
-
-func (m Model) normalizedSettings() config.Settings {
-	return config.Normalize(m.Settings.Values)
 }

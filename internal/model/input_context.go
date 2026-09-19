@@ -1,7 +1,5 @@
 package model
 
-import tea "charm.land/bubbletea/v2"
-
 // inputContext names the Input context (see CONTEXT.md): the one mode
 // that owns the keyboard at a given moment. Exactly one context is
 // active at any time; the Model's mode flags are mutually exclusive
@@ -78,7 +76,7 @@ func (m *Model) inputContextBeneathHelp() inputContext {
 
 func (m *Model) resolveInputContext(helpVisible bool) inputContext {
 	switch {
-	case m.Settings.EditingDistributionSource, m.Settings.EditingDepsBackupLimit:
+	case m.settings.textInputActive():
 		return inputSettingsInput
 	case helpVisible:
 		return inputHelpOverlay
@@ -119,7 +117,7 @@ func (m *Model) canOpenHelp() bool {
 func contextKeyBindings(m Model, ctx inputContext) []helpSection {
 	switch ctx {
 	case inputSettingsInput:
-		return []helpSection{editingKeyBindings(m.Settings.EditingDistributionSource)}
+		return []helpSection{editingKeyBindings(m.settings.editingSource())}
 	case inputHelpOverlay:
 		return []helpSection{helpOverlayBarBindings()}
 	case inputDepsDialog:
@@ -133,30 +131,4 @@ func contextKeyBindings(m Model, ctx inputContext) []helpSection {
 	default:
 		return []helpSection{tabKeyBindings(m.CurrentTab), globalKeyBindings()}
 	}
-}
-
-// handleSettingsInputKey routes a key press to whichever Settings text
-// input has focus.
-func (m *Model) handleSettingsInputKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	if m.Settings.EditingDistributionSource {
-		return m.handleDistributionSourceInputKey(msg)
-	}
-	return m.handleDepsBackupLimitInputKey(msg)
-}
-
-// updateSettingsInput forwards a non-key message (cursor blink and the
-// like) to the focused Settings text input.
-func (m *Model) updateSettingsInput(msg tea.Msg) tea.Cmd {
-	var cmds []tea.Cmd
-	if m.Settings.EditingDistributionSource {
-		var cmd tea.Cmd
-		m.Settings.DistributionSourceInput, cmd = m.Settings.DistributionSourceInput.Update(msg)
-		cmds = append(cmds, cmd)
-	}
-	if m.Settings.EditingDepsBackupLimit {
-		var cmd tea.Cmd
-		m.Settings.DepsBackupLimitInput, cmd = m.Settings.DepsBackupLimitInput.Update(msg)
-		cmds = append(cmds, cmd)
-	}
-	return tea.Batch(cmds...)
 }
