@@ -29,8 +29,7 @@ const (
 )
 
 type Model struct {
-	projection  catalogProjectionAdapter
-	initialLoad catalogLoadRequest
+	projection catalogProjectionAdapter
 
 	Spinner    spinner.Model
 	CurrentTab int
@@ -69,14 +68,6 @@ type Model struct {
 	settings settingsTab
 	deps     depsTab
 
-	// pendingSourceCheck correlates the distribution-source checks the
-	// Settings tab starts with the ChangeDistributionSourceCmd runs
-	// they spawn: the cmd must carry the catalog load request the
-	// projection opened for the check.
-	pendingSourceCheck []sourceCheckRequest
-
-	loadCatalog         loadCatalogFunc
-	distributionSource  changeDistributionSourceFunc
 	checkUpgrade        checkUpgradeFunc
 	installGo           installFunc
 	installWithProgress installProgressFunc
@@ -171,11 +162,10 @@ func New(moduleDir string, settings config.Settings, store config.Store, shimPat
 	sp.Style = theme.SpinnerStyle
 
 	projection := newCatalogProjectionAdapter(theme)
-	initialLoad := projection.startLoad(catalogLoadPurposeInitial).loadRequest
+	projection.prepareInitialLoad()
 
 	m := Model{
 		projection:      projection,
-		initialLoad:     initialLoad,
 		Spinner:         sp,
 		Layout:          styles.LayoutNormal,
 		theme:           theme,
@@ -205,8 +195,8 @@ type VersionOperations struct {
 
 // BindVersionOperations returns a copy of m bound to process-wide services.
 func (m Model) BindVersionOperations(operations VersionOperations) Model {
-	m.loadCatalog = operations.LoadCatalog
-	m.distributionSource = operations.DistributionSource
+	m.projection.loadCatalog = operations.LoadCatalog
+	m.projection.distributionSource = operations.DistributionSource
 	m.checkUpgrade = operations.CheckUpgrade
 	m.installGo = operations.Install
 	m.installWithProgress = operations.InstallWithProgress
@@ -230,16 +220,12 @@ func (m Model) BindDeps(executor func(backupLimit int) deps.API) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	var load tea.Cmd
-	if m.initialLoad.ID != 0 {
-		load = LoadVersionsCmd(m.loadCatalog, m.initialLoad)
-	}
 	var usage tea.Cmd
 	if m.diskUsage != nil {
 		usage = m.diskUsageCmd()
 	}
 	return tea.Batch(
-		load,
+		m.projection.init(),
 		usage,
 		m.initialUpgradeCheckCmd(),
 		m.Spinner.Tick,

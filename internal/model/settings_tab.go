@@ -82,14 +82,6 @@ type sourceCheckStartedMsg struct {
 	requestID uint64
 }
 
-// sourceCheckRequest pairs a catalog load request with the source the
-// Settings tab wants validated; the Model turns it into the
-// ChangeDistributionSourceCmd run.
-type sourceCheckRequest struct {
-	requestID uint64
-	source    string
-}
-
 // sourceCheckRejectedMsg tells the tab its source check could not
 // start (another operation active) or its catalog was rejected.
 type sourceCheckRejectedMsg struct {

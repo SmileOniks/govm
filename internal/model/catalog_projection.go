@@ -142,17 +142,20 @@ type catalogProjectionRefilterMsg struct {
 // or stale asynchronous result leaves both widgets and their prior selection
 // unchanged.
 type catalogProjectionAdapter struct {
-	catalog         versionCatalog
-	list            list.Model
-	installedTable  table.Model
-	generation      uint64
-	pendingRestore  catalogProjectionPendingRestore
-	state           catalogOperationState
-	refilterPending bool
-	load            catalogLoadRequest
-	loadActive      bool
-	nextOperationID uint64
-	nextLoadID      uint64
+	catalog            versionCatalog
+	list               list.Model
+	installedTable     table.Model
+	generation         uint64
+	pendingRestore     catalogProjectionPendingRestore
+	state              catalogOperationState
+	refilterPending    bool
+	load               catalogLoadRequest
+	loadActive         bool
+	nextOperationID    uint64
+	nextLoadID         uint64
+	initialLoad        catalogLoadRequest
+	loadCatalog        loadCatalogFunc
+	distributionSource changeDistributionSourceFunc
 }
 
 // newCatalogProjectionAdapter constructs a complete adapter from a theme.

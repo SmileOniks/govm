@@ -39,9 +39,9 @@ func testTheme() styles.Theme {
 func seedVersions(t testing.TB, m *Model, versions []utils.GoVersion) {
 	t.Helper()
 	outcome := catalogProjectionOutcome{}
-	if m.initialLoad.ID != 0 && m.projection.operationPhase() == catalogOperationPhaseLoading {
-		outcome = m.projection.acceptLoad(m.initialLoad.ID, versions)
-		m.initialLoad = catalogLoadRequest{}
+	if m.projection.initialLoad.ID != 0 && m.projection.operationPhase() == catalogOperationPhaseLoading {
+		outcome = m.projection.acceptLoad(m.projection.initialLoad.ID, versions)
+		m.projection.initialLoad = catalogLoadRequest{}
 	} else {
 		outcome = m.projection.replaceSnapshot(versions)
 	}

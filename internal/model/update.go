@@ -8,7 +8,6 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/smileoniks-ctrl/govm/internal/prune"
 	"github.com/smileoniks-ctrl/govm/internal/styles"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -21,12 +20,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
-	// A focused Settings input receives non-key messages (cursor
-	// blink) here; key presses are dispatched once, by the Input
-	// context switch below.
+	// A focused Settings input receives cursor ticks here. Keys and
+	// source results take one route, so a source result's refilter
+	// command cannot be lost to a second, already-settled delivery.
 	if m.inputContext() == inputSettingsInput {
-		if key, ok := msg.(tea.KeyPressMsg); ok {
-			return m.delegateSettings(key)
+		switch msg.(type) {
+		case tea.KeyPressMsg, distributionSourceValidatedMsg:
+			return m.delegateSettings(msg)
 		}
 		cmd, status := m.settings.update(msg)
 		effCmd := m.applySettingsStatus(status)
@@ -91,12 +91,12 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case catalogLoadedMsg:
-		updated, cmd := m.handleCatalogOutcome(m.projection.acceptLoad(msg.RequestID, msg.Versions))
-		usage := m.projection.setDiskUsage(m.DiskUsage.VersionBytes)
-		return updated, tea.Batch(cmd, usage.cmd)
+		cmd := m.applyCatalog(msg)
+		usage := m.applyCatalog(catalogDiskUsageMsg{sizes: m.DiskUsage.VersionBytes})
+		return m, tea.Batch(cmd, usage)
 
 	case catalogLoadFailedMsg:
-		return m.handleCatalogOutcome(m.projection.failLoad(msg.RequestID, msg.Err))
+		return m, m.applyCatalog(msg)
 
 	case distributionSourceValidatedMsg:
 		return m.delegateSettings(msg)
@@ -110,13 +110,13 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case diskUsageMsg:
 		m.DiskUsage = msg.Summary
-		outcome := m.projection.setDiskUsage(msg.Summary.VersionBytes)
+		cmd := m.applyCatalog(catalogDiskUsageMsg{sizes: msg.Summary.VersionBytes})
 		if msg.Err != nil {
 			m.Status.SetTab(fmt.Sprintf("Disk usage unavailable: %v", msg.Err), "warning")
 		} else if len(msg.Summary.Warnings) > 0 {
 			m.Status.SetTab("Disk usage is approximate; some files could not be inspected.", "warning")
 		}
-		return m, outcome.cmd
+		return m, cmd
 
 	case prunePreviewMsg:
 		if !m.Prune.AcceptPreview(msg.Result) {
@@ -144,11 +144,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				"success",
 			)
 		}
-		outcome := m.projection.startLoad(catalogLoadPurposeRefresh)
-		if outcome.kind != catalogProjectionOutcomeLoadStarted {
-			return m, m.diskUsageCmd()
-		}
-		return m, tea.Batch(LoadVersionsCmd(m.loadCatalog, outcome.loadRequest), m.diskUsageCmd())
+		return m, tea.Batch(m.applyCatalog(catalogRefreshMsg{}), m.diskUsageCmd())
 
 	case list.FilterMatchesMsg:
 		return m, m.projection.updateAvailable(msg)
@@ -168,24 +164,10 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.handleInstallProgressPoll(msg)
 
 	case installSuccessMsg:
-		return m.handleInstallSuccess(msg)
+		return m, tea.Batch(m.applyCatalog(msg), m.diskUsageCmd())
 
-	case installFailureMsg:
-		return m.handleInstallFailure(msg)
-
-	case activationSuccessMsg:
-		return m.handleActivationSuccess(msg)
-
-	case deletionSuccessMsg:
-		return m.handleDeletionSuccess(msg)
-
-	case lifecycleFailureMsg:
-		outcome := m.projection.failMutation(msg.OperationID, msg.Err)
-		if outcome.kind == catalogProjectionOutcomeStale {
-			return m, nil
-		}
-		m.Status.SetGlobal(fmt.Sprintf("Failed to %s Go %s: %v", msg.Operation, msg.Version, msg.Err), "error")
-		return m, nil
+	case installFailureMsg, activationSuccessMsg, deletionSuccessMsg, lifecycleFailureMsg:
+		return m, m.applyCatalog(msg)
 	}
 
 	cmds = append(cmds, m.projection.update(msg))
@@ -211,171 +193,4 @@ func pruneCandidateBytes(result prune.Result) int64 {
 		total += candidate.Bytes
 	}
 	return total
-}
-
-func (m *Model) handleCatalogOutcome(outcome catalogProjectionOutcome) (tea.Model, tea.Cmd) {
-	switch outcome.kind {
-	case catalogProjectionOutcomeStale, catalogProjectionOutcomeSuppressed:
-		return m, nil
-	case catalogProjectionOutcomeLoadStarted:
-		m.Status.SetGlobal(m.verifyingStatus(outcome.receipt.operation), "warning")
-		return m, LoadVersionsCmd(m.loadCatalog, outcome.loadRequest)
-	case catalogProjectionOutcomeReconciled:
-		m.applyCompletion(outcome.receipt.operation)
-		return m, outcome.cmd
-	case catalogProjectionOutcomeRejected:
-		if outcome.receipt.operation.id != 0 {
-			m.Status.SetGlobal(fmt.Sprintf("Could not verify the operation: %v.", outcome.err), "error")
-		} else {
-			m.Status.SetGlobal(fmt.Sprintf("Failed to load Go versions: %v.", outcome.err), "error")
-		}
-		return m, outcome.cmd
-	case catalogProjectionOutcomeFailed:
-		if outcome.receipt.operation.id != 0 {
-			m.Status.SetGlobal("The operation could not be confirmed against the installed catalog.", "error")
-		} else {
-			text := "catalog load failed"
-			if outcome.err != nil {
-				text = outcome.err.Error()
-			}
-			m.Status.SetGlobal(text, "error")
-		}
-		return m, outcome.cmd
-	case catalogProjectionOutcomeCommittedWarning:
-		m.applyCommittedProjectionWarning(outcome.receipt.operation, outcome.err)
-		return m, outcome.cmd
-	default:
-		return m, outcome.cmd
-	}
-}
-
-func (m *Model) handleInstallSuccess(msg installSuccessMsg) (tea.Model, tea.Cmd) {
-	outcome := m.projection.completeInstall(
-		msg.OperationID,
-		msg.Version,
-		msg.Path,
-		msg.Warnings,
-	)
-	updated, cmd := m.handleMutationCompletion(outcome)
-	return updated, tea.Batch(cmd, m.diskUsageCmd())
-}
-
-func (m *Model) handleInstallFailure(msg installFailureMsg) (tea.Model, tea.Cmd) {
-	outcome := m.projection.failMutation(msg.OperationID, msg.Err)
-	if outcome.kind == catalogProjectionOutcomeStale {
-		return m, nil
-	}
-	m.Status.SetGlobal(fmt.Sprintf("Failed to install Go %s: %v", msg.Version, msg.Err), "error")
-	return m, nil
-}
-
-func (m *Model) handleActivationSuccess(msg activationSuccessMsg) (tea.Model, tea.Cmd) {
-	outcome := m.projection.completeActivation(
-		msg.OperationID,
-		msg.Result.Version,
-		msg.Result.Warnings,
-		msg.ShimInPath,
-	)
-	return m.handleMutationCompletion(outcome)
-}
-
-func (m *Model) handleDeletionSuccess(msg deletionSuccessMsg) (tea.Model, tea.Cmd) {
-	outcome := m.projection.completeDeletion(
-		msg.OperationID,
-		msg.Result.Version,
-		msg.Result.Warnings,
-	)
-	return m.handleMutationCompletion(outcome)
-}
-
-func (m *Model) handleMutationCompletion(outcome catalogProjectionOutcome) (tea.Model, tea.Cmd) {
-	if outcome.kind == catalogProjectionOutcomeStale {
-		return m, nil
-	}
-	if outcome.kind == catalogProjectionOutcomeLoadStarted {
-		return m.handleCatalogOutcome(outcome)
-	}
-	if outcome.kind == catalogProjectionOutcomeCommittedWarning {
-		return m.handleCatalogOutcome(outcome)
-	}
-	if outcome.kind == catalogProjectionOutcomePublished || outcome.kind == catalogProjectionOutcomeNoop {
-		m.applyCompletion(outcome.receipt.operation)
-	}
-	return m, outcome.cmd
-}
-
-func (m *Model) applyCompletion(operation catalogOperation) {
-	switch operation.kind {
-	case catalogMutationInstall:
-		text, kind := installSuccessStatus(operation.version, operation.installWarnings)
-		m.Status.SetGlobal(text, kind)
-	case catalogMutationActivation:
-		if len(operation.lifecycleWarnings) > 0 {
-			m.Status.SetGlobal(
-				fmt.Sprintf(
-					"Switched to Go %s with warnings: %s",
-					operation.version,
-					joinLifecycleWarnings(operation.lifecycleWarnings),
-				),
-				"warning",
-			)
-			return
-		}
-		if operation.shimInPath {
-			m.Status.SetTab(
-				fmt.Sprintf("Switched to Go %s! Run 'go version' to verify.", operation.version),
-				"success",
-			)
-			return
-		}
-		m.Status.SetTab(
-			fmt.Sprintf("Switched to Go %s!\n\n%s", operation.version, utils.GetShimPathInstructions()),
-			"success",
-		)
-	case catalogMutationDeletion:
-		if len(operation.lifecycleWarnings) > 0 {
-			m.Status.SetGlobal(
-				fmt.Sprintf(
-					"Deleted Go %s with warnings: %s",
-					operation.version,
-					joinLifecycleWarnings(operation.lifecycleWarnings),
-				),
-				"warning",
-			)
-			return
-		}
-		m.Status.SetGlobal(fmt.Sprintf("Successfully deleted Go %s", operation.version), "success")
-	}
-}
-
-func (m *Model) applyCommittedProjectionWarning(operation catalogOperation, err error) {
-	action := "Version operation"
-	switch operation.kind {
-	case catalogMutationInstall:
-		action = fmt.Sprintf("Installed Go %s", operation.version)
-	case catalogMutationActivation:
-		action = fmt.Sprintf("Switched to Go %s", operation.version)
-	case catalogMutationDeletion:
-		action = fmt.Sprintf("Deleted Go %s", operation.version)
-	}
-	m.Status.SetGlobal(
-		fmt.Sprintf("%s, but the catalog view could not be updated: %v. Refresh to synchronize.", action, err),
-		"warning",
-	)
-}
-
-func (m Model) verifyingStatus(operation catalogOperation) string {
-	if operation.id == 0 {
-		return "Verifying catalog..."
-	}
-	switch operation.kind {
-	case catalogMutationInstall:
-		return fmt.Sprintf("Installed Go %s; verifying catalog...", operation.version)
-	case catalogMutationActivation:
-		return fmt.Sprintf("Switched to Go %s; verifying catalog...", operation.version)
-	case catalogMutationDeletion:
-		return fmt.Sprintf("Deleted Go %s; verifying catalog...", operation.version)
-	default:
-		return "Verifying catalog..."
-	}
 }

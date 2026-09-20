@@ -256,9 +256,7 @@ func (m *Model) handleRefreshKey() (tea.Model, tea.Cmd) {
 	if m.refreshInFlight() {
 		return m, nil
 	}
-	outcome := m.projection.startLoad(catalogLoadPurposeRefresh)
-	m.Status.SetGlobal("", "")
-	return m, LoadVersionsCmd(m.loadCatalog, outcome.loadRequest)
+	return m, m.applyCatalog(catalogRefreshMsg{manual: true})
 }
 
 func (m Model) refreshInFlight() bool {
@@ -369,7 +367,7 @@ func (m *Model) applySettingsStatus(status settingsStatus) tea.Cmd {
 		m.deps.applySettings(m.settings.values)
 	}
 	if status.themeChanged {
-		m.applyRuntimeTheme()
+		return m.applyRuntimeTheme()
 	}
 	if status.upgradeNoticeOn {
 		return m.startUpgradeCheck()
@@ -379,29 +377,13 @@ func (m *Model) applySettingsStatus(status settingsStatus) tea.Cmd {
 		return nil
 	}
 	if status.beginSourceCheck {
-		outcome := m.projection.startLoad(catalogLoadPurposeRefresh)
-		if outcome.kind != catalogProjectionOutcomeLoadStarted {
-			m.settings.update(sourceCheckRejectedMsg{reason: "cannot check distribution source while another operation is active"})
-			return nil
-		}
-		m.settings.update(sourceCheckStartedMsg{requestID: outcome.loadRequest.ID})
-		m.Status.SetGlobal("Checking distribution source...", "warning")
-		request := sourceCheckRequest{requestID: outcome.loadRequest.ID, source: status.source}
-		m.pendingSourceCheck = append(m.pendingSourceCheck, request)
-		return ChangeDistributionSourceCmd(m.distributionSource, outcome.loadRequest, status.source)
+		return m.applyCatalog(catalogSourceCheckMsg{source: status.source})
 	}
 	if status.failSourceCheck {
-		m.handleCatalogOutcome(m.projection.failLoad(status.requestID, status.err))
-		return nil
+		return m.applyCatalog(catalogLoadFailedMsg{RequestID: status.requestID, Err: status.err})
 	}
 	if status.acceptCatalog {
-		outcome := m.projection.acceptLoad(status.requestID, status.versions)
-		if outcome.kind == catalogProjectionOutcomeRejected {
-			m.settings.update(sourceCheckRejectedMsg{reason: fmt.Sprintf("Failed to apply catalog: %v", outcome.err)})
-			return nil
-		}
-		m.Status.SetTab("Settings saved.", "info")
-		return outcome.cmd
+		return m.applyCatalog(catalogSourceAcceptedMsg{requestID: status.requestID, versions: status.versions})
 	}
 	return nil
 }
@@ -414,13 +396,13 @@ func (m *Model) applySettingsStatus(status settingsStatus) tea.Cmd {
 // list items pick up the new pre-rendered titles. Replaces the
 // previous "mutate package-level globals and hope readers pick them
 // up" model with explicit value propagation.
-func (m *Model) applyRuntimeTheme() {
+func (m *Model) applyRuntimeTheme() tea.Cmd {
 	t := styles.NewTheme(config.ThemeName(m.settings.values.Theme))
 	m.theme = t
 	m.settings.applyTheme(config.ThemeName(m.settings.values.Theme))
 	m.Spinner.Style = t.SpinnerStyle
 	m.deps.applyTheme(t)
-	m.projection.setTheme(t)
+	return m.applyCatalog(catalogThemeMsg{theme: t})
 }
 
 func (m *Model) handleDeleteConfirmYes() (tea.Model, tea.Cmd) {
