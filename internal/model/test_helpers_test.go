@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"testing"
 
+	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"github.com/smileoniks-ctrl/govm/internal/config"
 	"github.com/smileoniks-ctrl/govm/internal/deps"
@@ -274,4 +275,26 @@ func focusSetting(t testing.TB, m Model, row settingsRowKind) Model {
 // second config.Store adapter (production binds config.FileStore).
 func settingsStore(m Model) *memorySettingsStore {
 	return m.settings.store.(*memorySettingsStore)
+}
+
+// runCatalogTestCmd delivers a finite command chain, including refilter and
+// disk-usage followups. Active progress waits must be driven explicitly.
+func runCatalogTestCmd(t testing.TB, m Model, cmd tea.Cmd) Model {
+	t.Helper()
+	if cmd == nil {
+		return m
+	}
+	msg := cmd()
+	switch msg := msg.(type) {
+	case nil, spinner.TickMsg:
+		return m
+	case tea.BatchMsg:
+		for _, child := range msg {
+			m = runCatalogTestCmd(t, m, child)
+		}
+		return m
+	default:
+		updated, next := m.Update(msg)
+		return runCatalogTestCmd(t, updated.(Model), next)
+	}
 }

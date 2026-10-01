@@ -136,26 +136,41 @@ type catalogProjectionRefilterMsg struct {
 	filterText string
 }
 
-// catalogProjectionAdapter owns the catalog and both render-facing widgets.
-// The catalog is committed before a projection is published, and widget
-// updates are performed as one transaction. Consequently an invalid snapshot
+// catalogProjectionAdapter owns the shared operation lifecycle, canonical
+// catalog and both render-facing widgets. The catalog is committed before a
+// projection is published; widget updates form one transaction. An invalid snapshot
 // or stale asynchronous result leaves both widgets and their prior selection
 // unchanged.
 type catalogProjectionAdapter struct {
-	catalog            versionCatalog
-	list               list.Model
-	installedTable     table.Model
-	generation         uint64
-	pendingRestore     catalogProjectionPendingRestore
-	state              catalogOperationState
-	refilterPending    bool
-	load               catalogLoadRequest
-	loadActive         bool
-	nextOperationID    uint64
-	nextLoadID         uint64
-	initialLoad        catalogLoadRequest
-	loadCatalog        loadCatalogFunc
-	distributionSource changeDistributionSourceFunc
+	catalog             versionCatalog
+	list                list.Model
+	installedTable      table.Model
+	generation          uint64
+	pendingRestore      catalogProjectionPendingRestore
+	state               catalogOperationState
+	refilterPending     bool
+	load                catalogLoadRequest
+	loadActive          bool
+	nextOperationID     uint64
+	nextLoadID          uint64
+	initialLoad         catalogLoadRequest
+	loadCatalog         loadCatalogFunc
+	distributionSource  changeDistributionSourceFunc
+	installGo           installFunc
+	installWithProgress installProgressFunc
+	activateGo          activateFunc
+	deleteGo            deleteFunc
+	shimInPath          func() bool
+}
+
+func (a *catalogProjectionAdapter) bindOperations(operations VersionOperations) {
+	a.loadCatalog = operations.LoadCatalog
+	a.distributionSource = operations.DistributionSource
+	a.installGo = operations.Install
+	a.installWithProgress = operations.InstallWithProgress
+	a.activateGo = operations.Activate
+	a.deleteGo = operations.Delete
+	a.shimInPath = operations.ShimInPath
 }
 
 // newCatalogProjectionAdapter constructs a complete adapter from a theme.
@@ -339,10 +354,6 @@ func (a *catalogProjectionAdapter) startMutation(kind catalogMutationKind, versi
 		return catalogOperation{}
 	}
 	return a.beginMutation(kind, version)
-}
-
-func (a *catalogProjectionAdapter) activeOperationID() uint64 {
-	return a.state.operation.id
 }
 
 func (a *catalogProjectionAdapter) completeInstall(

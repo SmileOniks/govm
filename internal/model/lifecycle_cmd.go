@@ -30,9 +30,10 @@ type lifecycleFailureMsg struct {
 	Err         error
 }
 
-func (m Model) activateVersionCmd(operationID uint64, version string) tea.Cmd {
+func (a *catalogProjectionAdapter) activateVersionCmd(operationID uint64, version string) tea.Cmd {
+	activate, checkShim := a.activateGo, a.shimInPath
 	return func() tea.Msg {
-		if m.activateGo == nil {
+		if activate == nil {
 			return lifecycleFailureMsg{
 				OperationID: operationID,
 				Operation:   "switch",
@@ -40,7 +41,7 @@ func (m Model) activateVersionCmd(operationID uint64, version string) tea.Cmd {
 				Err:         errors.New("no lifecycle activator configured"),
 			}
 		}
-		result, err := m.activateGo(context.Background(), version)
+		result, err := activate(context.Background(), version)
 		if err != nil {
 			return lifecycleFailureMsg{
 				OperationID: operationID,
@@ -50,8 +51,8 @@ func (m Model) activateVersionCmd(operationID uint64, version string) tea.Cmd {
 			}
 		}
 		shimInPath := false
-		if m.shimInPath != nil {
-			shimInPath = m.shimInPath()
+		if checkShim != nil {
+			shimInPath = checkShim()
 		}
 		return activationSuccessMsg{
 			OperationID: operationID,
@@ -61,9 +62,10 @@ func (m Model) activateVersionCmd(operationID uint64, version string) tea.Cmd {
 	}
 }
 
-func (m Model) deleteVersionCmd(operationID uint64, version string) tea.Cmd {
+func (a *catalogProjectionAdapter) deleteVersionCmd(operationID uint64, version string) tea.Cmd {
+	deleteVersion := a.deleteGo
 	return func() tea.Msg {
-		if m.deleteGo == nil {
+		if deleteVersion == nil {
 			return lifecycleFailureMsg{
 				OperationID: operationID,
 				Operation:   "delete",
@@ -71,7 +73,7 @@ func (m Model) deleteVersionCmd(operationID uint64, version string) tea.Cmd {
 				Err:         errors.New("no lifecycle deleter configured"),
 			}
 		}
-		result, err := m.deleteGo(context.Background(), version)
+		result, err := deleteVersion(context.Background(), version)
 		if err != nil {
 			return lifecycleFailureMsg{
 				OperationID: operationID,

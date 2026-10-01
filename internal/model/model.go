@@ -68,15 +68,10 @@ type Model struct {
 	settings settingsTab
 	deps     depsTab
 
-	checkUpgrade        checkUpgradeFunc
-	installGo           installFunc
-	installWithProgress installProgressFunc
-	activateGo          activateFunc
-	deleteGo            deleteFunc
-	previewPrune        previewPruneFunc
-	runPrune            pruneFunc
-	diskUsage           diskUsageFunc
-	shimInPath          func() bool
+	checkUpgrade checkUpgradeFunc
+	previewPrune previewPruneFunc
+	runPrune     pruneFunc
+	diskUsage    diskUsageFunc
 
 	// upgradeCheck and upgradeNotice implement the Upgrade notice: the
 	// session's single Latest release lookup and the tag it produced
@@ -109,7 +104,7 @@ func FilterProgramMessage(current tea.Model, msg tea.Msg) tea.Msg {
 	repeated := key.IsRepeat ||
 		(!program.lastRefreshKey.IsZero() && now.Sub(program.lastRefreshKey) < refreshKeyRepeatWindow)
 	program.lastRefreshKey = now
-	if repeated || program.model.refreshInFlight() {
+	if repeated || program.model.projection.refreshInFlight() {
 		// In a text-entry context r is ordinary input: the repeat
 		// suppression must not eat the second r of a fast "rr".
 		if program.model.inputContext().textEntry() {
@@ -195,17 +190,11 @@ type VersionOperations struct {
 
 // BindVersionOperations returns a copy of m bound to process-wide services.
 func (m Model) BindVersionOperations(operations VersionOperations) Model {
-	m.projection.loadCatalog = operations.LoadCatalog
-	m.projection.distributionSource = operations.DistributionSource
+	m.projection.bindOperations(operations)
 	m.checkUpgrade = operations.CheckUpgrade
-	m.installGo = operations.Install
-	m.installWithProgress = operations.InstallWithProgress
-	m.activateGo = operations.Activate
-	m.deleteGo = operations.Delete
 	m.previewPrune = operations.PreviewPrune
 	m.runPrune = operations.Prune
 	m.diskUsage = operations.DiskUsage
-	m.shimInPath = operations.ShimInPath
 	return m
 }
 

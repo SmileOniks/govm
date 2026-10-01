@@ -140,11 +140,11 @@ The TUI header shows the GoVM version so you always know which build is running.
 | `Tab` | Cycle forward between Available, Installed, Deps, and Settings tabs |
 | `Shift+Tab` | Cycle backward to the previous tab (wraps from Available to Settings) |
 | `i` | Install the selected version (Available tab) |
-| `u` | Switch to the selected version (Available tab) or open the dependency update dialog (Deps tab) |
+| `u` | Switch to the selected version (Available/Installed tabs) or open the dependency update dialog (Deps tab) |
 | `space` | Mark / unmark the dependency under the cursor for the next update (Deps tab) |
 | `a` | Mark every listed dependency, or clear all marks when any is marked (Deps tab) |
 | `d` | Delete the selected installed version with confirmation (Available/Installed tabs) |
-| `r` | Refresh available versions from go.dev (Available tab) or check for dependency updates online (Deps tab) |
+| `r` | Refresh the Go version catalog (Available/Installed tabs) or check for dependency updates online (Deps tab) |
 | `f` | Find in the Available list: type to narrow it live with fuzzy matching, `enter` to apply, `esc` to clear |
 | `b` | List saved dependency backups and choose one to restore (Deps tab) |
 | `↑/↓`, `k/j` | Move the cursor between settings (Settings tab) or between dependency backups in the restore dialog |
@@ -153,6 +153,8 @@ The TUI header shows the GoVM version so you always know which build is running.
 | `q`, `ctrl+c` | Quit |
 
 When deleting a version, you will be prompted to confirm with `y` or cancel with `n`. The active version cannot be deleted.
+
+Install progress continues across tab switches, and refreshing the catalog does not cancel an installation. Additional install, use, and delete actions are ignored while a version operation is running or its result is being verified. Confirming a deletion rechecks the current catalog: a version that disappeared, is no longer installed, or became active will not be deleted.
 
 While the filter input is open, every key you type goes into it — including `q` and `?` — so commands, help, and quit are suspended until you press `enter` (apply) or `esc` (clear the filter). `ctrl+c` still quits, and `Tab`/`Shift+Tab` still switch tabs; the filter survives the round trip. An applied filter shows an indicator line (`find: "1.2" · 12/100 · esc clear`) above the list, and commands then act on the filtered selection. Filtering is unavailable while a delete or prune confirmation is pending.
 

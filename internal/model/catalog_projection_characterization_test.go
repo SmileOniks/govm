@@ -1,10 +1,13 @@
 package model
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
 	"charm.land/bubbles/v2/table"
+	tea "charm.land/bubbletea/v2"
+	"github.com/smileoniks-ctrl/govm/internal/install"
 	"github.com/smileoniks-ctrl/govm/internal/styles"
 	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
@@ -35,18 +38,30 @@ func TestCatalogProjection_InstalledSelectionFollowsIdentityAfterReorder(t *test
 
 func TestCatalogProjection_InvalidReconciliationPreservesPriorWidgets(t *testing.T) {
 	m := newVersionCacheTestModel(t)
+	m = m.BindVersionOperations(VersionOperations{
+		Install: func(_ context.Context, r install.Request) (install.Result, error) {
+			return install.Result{Version: r.Version, Path: "/go/" + r.Version}, nil
+		},
+	})
+	m = applyFilter(t, m, "1.25.0")
+	updated, operation := m.Update(tea.KeyPressMsg{Code: 'i'})
+	m = updated.(Model)
+	completion := operation()
+	updated, refresh := m.Update(tea.KeyPressMsg{Code: 'r'})
+	m = updated.(Model)
+	updated, refilter := m.Update(catalogLoadedMsg{
+		RequestID: catalogRequestID(t, refresh),
+		Versions: []utils.GoVersion{
+			{Version: "1.24.4", Installed: true, Active: true, Path: "/p/1.24.4"},
+			{Version: "1.26.0", Installed: true, Path: "/p/1.26.0"},
+		},
+	})
+	m = runCatalogTestCmd(t, updated.(Model), refilter)
 	priorItems := catalogProjectionItemNames(m)
 	priorRows := cloneCatalogProjectionRows(m.projection.installedModel().Rows())
-
-	operation := m.projection.startMutation(catalogMutationInstall, "1.30.0")
-	updated, _ := m.Update(installSuccessMsg{
-		OperationID: operation.id,
-		Version:     "1.30.0",
-		Path:        "/go/1.30.0",
-	})
+	updated, verify := m.Update(completion)
 	m = updated.(Model)
-
-	request := m.projection.load.ID
+	request := catalogRequestID(t, verify)
 	updated, _ = m.Update(catalogLoadedMsg{
 		RequestID: request,
 		Versions: []utils.GoVersion{

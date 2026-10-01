@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -57,18 +58,17 @@ func TestTabSwitchClearsSwitchedToGoStatus(t *testing.T) {
 		{Version: "1.24.4", Filename: "go1.24.4.darwin-arm64.tar.gz", Installed: true, Active: true, Path: "/p/1.24.4"},
 		{Version: "1.26.5", Filename: "go1.26.5.darwin-arm64.tar.gz", Installed: true, Active: false, Path: "/p/1.26.5"},
 	})
-	// Simulate the switch completing with the shim already on PATH,
-	// which is the branch that produces "Switched to Go X! Run ...".
-	operation := m.projection.startMutation(catalogMutationActivation, "1.26.5")
-	updated, _ := m.Update(activationSuccessMsg{
-		OperationID: operation.id,
-		Result:      lifecycle.ActivationResult{Version: "1.26.5"},
-		ShimInPath:  true,
+	m = m.BindVersionOperations(VersionOperations{
+		Activate: func(_ context.Context, version string) (lifecycle.ActivationResult, error) {
+			return lifecycle.ActivationResult{Version: version}, nil
+		},
+		ShimInPath: func() bool { return true },
 	})
-	m = updated.(Model)
-
-	if got, want := m.Status.Text(), "Switched to Go 1.26.5! Run 'go version' to verify."; got != want {
-		t.Fatalf("status after switch = %q, want %q", got, want)
+	m = applyFilter(t, m, "1.26.5")
+	updated, cmd := m.Update(tea.KeyPressMsg{Code: 'u'})
+	m = runCatalogTestCmd(t, updated.(Model), cmd)
+	if v, _ := m.projection.lookup("1.26.5"); !v.Active || m.Status.Kind() != "success" {
+		t.Fatalf("activation = %+v, status=%q", v, m.Status.Text())
 	}
 
 	// Switching tabs must tear down the tab-scoped success message.
@@ -81,13 +81,14 @@ func TestTabSwitchClearsSwitchedToGoStatus(t *testing.T) {
 }
 
 func TestTabSwitchCancelsPendingDelete(t *testing.T) {
-	m := newTestModel(t)
-	m.Status.SetTab("Are you sure you want to delete Go 1.24.4?", "warning")
-	m.ConfirmingDelete = true
-	m.DeleteVersion = "1.24.4"
-
-	updated, _ := m.handleTabKey()
-	got := *updated.(*Model)
+	m := newVersionCacheTestModel(t)
+	m = applyFilter(t, m, "1.26.0")
+	m = press(t, m, tea.KeyPressMsg{Code: 'd'})
+	if !m.ConfirmingDelete || m.DeleteVersion != "1.26.0" {
+		t.Fatal("delete confirmation did not open for the selected inactive version")
+	}
+	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	got := updated.(Model)
 
 	if got.CurrentTab != InstalledTab {
 		t.Fatalf("current tab = %d, want %d", got.CurrentTab, InstalledTab)

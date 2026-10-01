@@ -1,12 +1,14 @@
 package model
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	coredeps "github.com/smileoniks-ctrl/govm/internal/deps"
+	"github.com/smileoniks-ctrl/govm/internal/install"
 	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
 
@@ -250,61 +252,47 @@ func TestRefreshOnDepsTabTriggersCheckCmd(t *testing.T) {
 
 func TestRefreshWhileCatalogLoadIsInFlightIsIgnored(t *testing.T) {
 	m := newTestModel(t)
-
-	updated, firstCmd := m.Update(tea.KeyPressMsg{Code: 'r'})
+	calls := 0
+	m = m.BindVersionOperations(VersionOperations{
+		LoadCatalog: func(context.Context) ([]utils.GoVersion, error) {
+			calls++
+			return []utils.GoVersion{{Version: "1.30.0"}}, nil
+		},
+	})
+	updated, first := m.Update(tea.KeyPressMsg{Code: 'r'})
 	m = updated.(Model)
-	if firstCmd == nil {
-		t.Fatal("expected the first refresh to start a load")
-	}
-	firstRequest := m.projection.load
-
-	updated, secondCmd := m.Update(tea.KeyPressMsg{Code: 'r'})
+	updated, second := m.Update(tea.KeyPressMsg{Code: 'r'})
 	m = updated.(Model)
-
-	if secondCmd != nil {
-		t.Fatal("expected repeated refresh to be ignored while the catalog is loading")
+	if second != nil {
+		t.Fatal("repeated refresh dispatched another load")
 	}
-	if got := m.projection.load; got != firstRequest {
-		t.Fatalf("load request after repeated refresh = %+v, want %+v", got, firstRequest)
-	}
-	if got := m.projection.nextLoadID; got != firstRequest.ID {
-		t.Fatalf("next load id = %d, want %d", got, firstRequest.ID)
+	m = runCatalogTestCmd(t, m, first)
+	if _, ok := m.projection.lookup("1.30.0"); calls != 1 || !ok {
+		t.Fatalf("loader calls=%d, first snapshot published=%v", calls, ok)
 	}
 }
 
 func TestRefreshWhileCatalogRefilterIsInFlightIsIgnored(t *testing.T) {
-	m := newTestModel(t)
-	m.projection.setAvailableFilteringEnabled(true)
-	m.projection.setAvailableFilterText("1.24")
-
-	updated, firstCmd := m.Update(tea.KeyPressMsg{Code: 'r'})
-	m = updated.(Model)
-	if firstCmd == nil {
-		t.Fatal("expected the first refresh to start a load")
-	}
-
-	updated, refilterCmd := m.Update(catalogLoadedMsg{
-		RequestID: m.projection.load.ID,
-		Versions: []utils.GoVersion{
-			{Version: "1.25.0"},
-			{Version: "1.24.4"},
+	m := applyFilter(t, newTestModel(t), "1.24")
+	calls := 0
+	m = m.BindVersionOperations(VersionOperations{
+		LoadCatalog: func(context.Context) ([]utils.GoVersion, error) {
+			calls++
+			return []utils.GoVersion{{Version: "1.25.0"}, {Version: "1.24.4"}}, nil
 		},
 	})
+	updated, first := m.Update(tea.KeyPressMsg{Code: 'r'})
 	m = updated.(Model)
-	if refilterCmd == nil {
-		t.Fatal("expected catalog publication to start a refilter")
+	updated, refilter := m.Update(first())
+	m = updated.(Model)
+	updated, second := m.Update(tea.KeyPressMsg{Code: 'r'})
+	m = updated.(Model)
+	if second != nil {
+		t.Fatal("refresh interrupted the pending refilter")
 	}
-
-	updated, secondCmd := m.Update(tea.KeyPressMsg{Code: 'r'})
-	m = updated.(Model)
-	if secondCmd != nil {
-		t.Fatal("expected repeated refresh to be ignored while refilter is pending")
-	}
-
-	updated, _ = m.Update(refilterCmd())
-	m = updated.(Model)
-	if m.projection.refilterPending {
-		t.Fatal("expected refilter to be settled")
+	m = runCatalogTestCmd(t, m, refilter)
+	if calls != 1 || selectedListVersion(m) != "1.24.4" {
+		t.Fatalf("loader calls=%d, selection=%q", calls, selectedListVersion(m))
 	}
 }
 
@@ -315,17 +303,16 @@ func TestFilterProgramMessageDropsRepeatedRefresh(t *testing.T) {
 	if got := FilterProgramMessage(program, tea.KeyPressMsg{Code: 'r'}); got == nil {
 		t.Fatal("expected idle refresh to reach Update")
 	}
-	program.model.projection.failLoad(program.model.projection.load.ID, nil)
 	if got := FilterProgramMessage(program, tea.KeyPressMsg{Code: 'r'}); got != nil {
 		t.Fatalf("rapid repeated message = %T, want nil", got)
 	}
 
 	program.lastRefreshKey = time.Time{}
-	program.model.projection.startLoad(catalogLoadPurposeRefresh)
+	_, refresh := program.Update(tea.KeyPressMsg{Code: 'r'})
 	if got := FilterProgramMessage(program, tea.KeyPressMsg{Code: 'r'}); got != nil {
 		t.Fatalf("filtered message = %T, want nil while refresh is active", got)
 	}
-	program.model.projection.failLoad(program.model.projection.load.ID, nil)
+	program.Update(refresh())
 	program.lastRefreshKey = time.Time{}
 	if got := FilterProgramMessage(program, tea.KeyPressMsg{Code: 'r', IsRepeat: true}); got != nil {
 		t.Fatalf("key repeat message = %T, want nil", got)
@@ -420,5 +407,34 @@ func TestPressUOnDepsWithoutUpdatesShowsMessage(t *testing.T) {
 	}
 	if m.Status.Kind() != "warning" {
 		t.Fatalf("expected warning message, got type %q", m.Status.Kind())
+	}
+}
+
+func TestCatalogFlowBlocksDepsUpdateUntilMutationCompletes(t *testing.T) {
+	m := loadDeps(t, newVersionCacheTestModel(t), testLib())
+	checks := 0
+	fakeDepsExecutor{execute: func(coredeps.Intent) (coredeps.Event, error) {
+		checks++
+		return coredeps.CheckUpdatesDoneEvent{Dependencies: testLib()}, nil
+	}}.bind(&m)
+	m = m.BindVersionOperations(VersionOperations{
+		Install: func(_ context.Context, r install.Request) (install.Result, error) {
+			return install.Result{Version: r.Version, Path: "/go/" + r.Version}, nil
+		},
+	})
+	m = press(t, m, shiftTab(), shiftTab())
+	m = applyFilter(t, m, "1.25.0")
+	updated, installCmd := m.Update(tea.KeyPressMsg{Code: 'i'})
+	m = press(t, updated.(Model), tea.KeyPressMsg{Code: tea.KeyTab}, tea.KeyPressMsg{Code: tea.KeyTab})
+	updated, blocked := m.Update(tea.KeyPressMsg{Code: 'u'})
+	m = updated.(Model)
+	if blocked != nil || checks != 0 || m.inputContext() == inputDepsDialog {
+		t.Fatal("dependency update started while a catalog mutation was in flight")
+	}
+	m = runCatalogTestCmd(t, m, installCmd)
+	updated, allowed := m.Update(tea.KeyPressMsg{Code: 'u'})
+	m = runCatalogTestCmd(t, updated.(Model), allowed)
+	if checks != 1 || m.inputContext() != inputDepsDialog {
+		t.Fatalf("dependency update did not resume: checks=%d, context=%v", checks, m.inputContext())
 	}
 }

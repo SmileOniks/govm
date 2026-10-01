@@ -1,10 +1,12 @@
 package model
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/smileoniks-ctrl/govm/internal/lifecycle"
 	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
 
@@ -20,6 +22,14 @@ func TestInstalledTab_UKeyTriggersSwitchVersion(t *testing.T) {
 	seedVersions(t, &m, []utils.GoVersion{
 		{Version: "1.24.4", Installed: true, Active: true, Path: "/p/1.24.4"},
 		{Version: "1.26.0", Installed: true, Active: false, Path: "/p/1.26.0"},
+	})
+	called := ""
+	m = m.BindVersionOperations(VersionOperations{
+		Activate: func(_ context.Context, version string) (lifecycle.ActivationResult, error) {
+			called = version
+			return lifecycle.ActivationResult{Version: version}, nil
+		},
+		ShimInPath: func() bool { return true },
 	})
 	focusInstalled(&m)
 	// Move the cursor to the non-active row (1.26.0).
@@ -38,6 +48,11 @@ func TestInstalledTab_UKeyTriggersSwitchVersion(t *testing.T) {
 	if activity := got.projection.activityState(); activity.kind != catalogActivityActivating || activity.version != "1.26.0" {
 		t.Fatalf("activity = %+v, want activating 1.26.0", activity)
 	}
+	got = runCatalogTestCmd(t, got, cmd)
+	if v, _ := got.projection.lookup("1.26.0"); called != "1.26.0" || !v.Active {
+		t.Fatalf("activation target=%q, installed version=%+v", called, v)
+	}
+	assertVersionViewsConsistent(t, got)
 }
 
 // TestDepsTab_CheckStatusClearsAfterDependenciesMsg regression-tests

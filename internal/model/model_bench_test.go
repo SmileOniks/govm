@@ -126,7 +126,9 @@ func BenchmarkView_DepsTab(b *testing.B) {
 }
 
 func BenchmarkView_DepsTabWithDialog(b *testing.B) {
-	m := openUpdateDialog(b, benchModel(b))
+	m := benchModel(b)
+	m.CurrentTab = DepsTab
+	m = openUpdateDialog(b, m)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -137,7 +139,9 @@ func BenchmarkView_DepsTabWithDialog(b *testing.B) {
 func BenchmarkView_DepsTabWithPhysicalViewport(b *testing.B) {
 	for _, width := range []int{64, 80, 120} {
 		b.Run(strconv.Itoa(width), func(b *testing.B) {
-			m := openUpdateDialog(b, benchModel(b))
+			m := benchModel(b)
+			m.CurrentTab = DepsTab
+			m = openUpdateDialog(b, m)
 			m.TermWidth = width
 			m.TermHeight = 30
 
@@ -168,7 +172,9 @@ func BenchmarkView_DepsTabWithPhysicalViewportWithoutDialog(b *testing.B) {
 func BenchmarkView_DepsTabWithPhysicalViewportWithDialog(b *testing.B) {
 	for _, width := range []int{64, 80, 120} {
 		b.Run(strconv.Itoa(width), func(b *testing.B) {
-			m := openUpdateDialog(b, benchModelAtViewport(b, width))
+			m := benchModelAtViewport(b, width)
+			m.CurrentTab = DepsTab
+			m = openUpdateDialog(b, m)
 
 			b.ReportAllocs()
 			b.ResetTimer()

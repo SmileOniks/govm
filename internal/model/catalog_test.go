@@ -1,27 +1,16 @@
 package model
 
-// This file contains integration tests for the private version catalog
-// and its interaction with the Available/Installed widgets. These tests
-// exercise the catalog through the agreed production contract:
-//
-//   - Model.replaceVersions([]utils.GoVersion) (tea.Cmd, error) applies
-//     the catalog snapshot and rebuilds both widgets.
-//   - catalog.projection() returns one ordered snapshot for both
-//     widgets.
-//   - catalog.lookup(version) returns (utils.GoVersion, bool).
-//   - The Available list and Installed table are private widget fields
-//     (m.list, m.installedTable) accessible from same-package tests.
-//
-// Each test documents the observable behaviour it asserts. If a test
-// fails due to a production contract mismatch, the failure message
-// identifies which catalog behaviour diverged.
+// Catalog integration tests drive actions and load results through the model
+// and check the shared Available/Installed projection.
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/smileoniks-ctrl/govm/internal/config"
+	"github.com/smileoniks-ctrl/govm/internal/install"
 	"github.com/smileoniks-ctrl/govm/internal/lifecycle"
 	"github.com/smileoniks-ctrl/govm/internal/styles"
 	"github.com/smileoniks-ctrl/govm/internal/utils"
@@ -116,174 +105,86 @@ func TestVersionsMsgAcceptsUnmanagedActiveVersion(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// 2. Completion for unknown version starts reconciliation.
-// ---------------------------------------------------------------------------
-
-// TestUnknownCompletionStartsReconciliation verifies that an install
-// completion for a version absent from the catalog triggers a
-// reconciliation: a fetch command is issued (asserted non-nil, not
-// invoked to avoid network) and a warning surfaces to the user.
-func TestUnknownCompletionStartsReconciliation(t *testing.T) {
-	m := newVersionCacheTestModel(t)
-	operation := m.projection.startMutation(catalogMutationInstall, "9.9.9-nonexistent")
-
-	updated, cmd := m.Update(installSuccessMsg{
-		OperationID: operation.id,
-		Version:     "9.9.9-nonexistent",
-		Path:        "/p/9.9.9",
-	})
-	got := updated.(Model)
-
-	if cmd == nil {
-		t.Fatal("expected non-nil reconciliation fetch command for unknown completion version")
-	}
-	if got.Status.Kind() != "warning" {
-		t.Fatalf("status kind = %q, want warning for reconciliation", got.Status.Kind())
-	}
-}
-
-// ---------------------------------------------------------------------------
-// 3. Successful reconciliation confirms pending operation.
-// ---------------------------------------------------------------------------
-
-// TestReconciliationConfirmsPendingCompletion verifies the full
-// reconciliation flow: after an unknown completion triggers a fetch,
-// the returned VersionsMsg that includes the completed version must
-// confirm the pending operation — the version is marked installed with
-// the path from the original completion message.
-func TestReconciliationConfirmsPendingCompletion(t *testing.T) {
-	m := newVersionCacheTestModel(t)
-	operation := m.projection.startMutation(catalogMutationInstall, "1.30.0")
-
-	// 1. Trigger reconciliation for a version not yet in the catalog.
-	updated, cmd := m.Update(installSuccessMsg{
-		OperationID: operation.id,
-		Version:     "1.30.0",
-		Path:        "/p/1.30.0",
-	})
-	m = updated.(Model)
-
-	// 2. The reconciliation fetch returns a catalog that now includes
-	//    the completed version, installed on disk.
-	fresh := projectionVersions(m, utils.GoVersion{
-		Version:   "1.30.0",
-		Filename:  "go1.30.0.darwin-arm64.tar.gz",
-		Installed: true,
-		Path:      "/p/1.30.0",
-	})
-	updated, _ = m.Update(catalogLoadedMsg{
-		RequestID: catalogRequestID(t, cmd),
-		Versions:  fresh,
-	})
-	got := updated.(Model)
-
-	v, ok := got.projection.lookup("1.30.0")
-	if !ok {
-		t.Fatal("expected 1.30.0 in catalog after reconciliation")
-	}
-	if !v.Installed {
-		t.Fatalf("1.30.0 Installed = false, want true (pending completion confirmed)")
-	}
-	if v.Path != "/p/1.30.0" {
-		t.Fatalf("1.30.0 Path = %q, want /p/1.30.0", v.Path)
-	}
-}
-
-func TestSwitchReconciliationConfirmsActiveVersion(t *testing.T) {
-	m := newVersionCacheTestModel(t)
-	operation := m.projection.startMutation(catalogMutationActivation, "1.30.0")
-	updated, cmd := m.Update(activationSuccessMsg{
-		OperationID: operation.id,
-		Result:      lifecycle.ActivationResult{Version: "1.30.0"},
-		ShimInPath:  true,
-	})
-	m = updated.(Model)
-
-	fresh := projectionVersions(m)
-	for i := range fresh {
-		fresh[i].Active = false
-	}
-	fresh = append(fresh, utils.GoVersion{
-		Version:   "1.30.0",
-		Installed: true,
-		Active:    true,
-		Path:      "/p/1.30.0",
-	})
-	updated, _ = m.Update(catalogLoadedMsg{
-		RequestID: catalogRequestID(t, cmd),
-		Versions:  fresh,
-	})
-	got := updated.(Model)
-
-	v, ok := got.projection.lookup("1.30.0")
-	if !ok || !v.Active {
-		t.Fatalf("reconciled switch version = %+v, found=%v", v, ok)
-	}
-	if got.Status.Kind() != "success" || got.projection.operationPhase() != catalogOperationPhaseIdle {
-		t.Fatalf("status=%q phase=%v", got.Status.Kind(), got.projection.operationPhase())
-	}
-}
-
-func TestDeleteReconciliationAcceptsAbsentVersion(t *testing.T) {
-	m := newVersionCacheTestModel(t)
-	operation := m.projection.startMutation(catalogMutationDeletion, "1.30.0")
-	updated, cmd := m.Update(deletionSuccessMsg{
-		OperationID: operation.id,
-		Result:      lifecycle.DeletionResult{Version: "1.30.0"},
-	})
-	m = updated.(Model)
-
-	updated, _ = m.Update(catalogLoadedMsg{
-		RequestID: catalogRequestID(t, cmd),
-		Versions:  projectionVersions(m),
-	})
-	got := updated.(Model)
-	if got.Status.Kind() != "success" {
-		t.Fatalf("status kind = %q, want success", got.Status.Kind())
-	}
-	if got.projection.operationPhase() != catalogOperationPhaseIdle {
-		t.Fatalf("operation phase = %v, want idle", got.projection.operationPhase())
-	}
-}
-
-// ---------------------------------------------------------------------------
-// 4. Valid refresh that cannot confirm pending completion applies
-//    snapshot and reports error.
-// ---------------------------------------------------------------------------
-
-// TestValidRefreshWithoutPendingConfirmationReportsError verifies that
-// when a reconciliation fetch returns a catalog that does NOT contain
-// the pending completion version, the snapshot is still applied but an
-// error is reported about the unconfirmable pending operation.
-func TestValidRefreshWithoutPendingConfirmationReportsError(t *testing.T) {
-	m := newVersionCacheTestModel(t)
-	operation := m.projection.startMutation(catalogMutationInstall, "1.30.0")
-
-	// 1. Trigger reconciliation for an unknown completion.
-	updated, cmd := m.Update(installSuccessMsg{
-		OperationID: operation.id,
-		Version:     "1.30.0",
-		Path:        "/p/1.30.0",
-	})
-	m = updated.(Model)
-
-	// 2. The fetch returns a catalog WITHOUT the completed version —
-	//    the pending operation cannot be confirmed.
-	fresh := projectionVersions(m)
-	updated, _ = m.Update(catalogLoadedMsg{
-		RequestID: catalogRequestID(t, cmd),
-		Versions:  fresh,
-	})
-	got := updated.(Model)
-
-	// The snapshot must still be applied (catalog is non-empty).
-	if len(got.projection.projection().available) == 0 {
-		t.Fatal("expected non-empty catalog after valid refresh despite unconfirmable completion")
-	}
-	// The unconfirmable pending completion must be reported as an error.
-	if got.Status.Kind() != "error" {
-		t.Fatalf("status kind = %q, want error for unconfirmable pending completion", got.Status.Kind())
+func TestCatalogModelReconciliation(t *testing.T) {
+	for _, action := range []string{"install", "activate", "delete"} {
+		t.Run(action, func(t *testing.T) {
+			m := newVersionCacheTestModel(t)
+			const version = "1.30.0"
+			target := utils.GoVersion{Version: version}
+			if action != "install" {
+				target.Installed = true
+				target.Path = "/p/" + version
+			}
+			before := projectionVersions(m)
+			seedVersions(t, &m, append(projectionVersions(m), target))
+			nextSnapshot := before
+			loads, mutations := 0, 0
+			m = m.BindVersionOperations(VersionOperations{
+				LoadCatalog: func(context.Context) ([]utils.GoVersion, error) {
+					loads++
+					return nextSnapshot, nil
+				},
+				Install: func(_ context.Context, r install.Request) (install.Result, error) {
+					mutations++
+					return install.Result{Version: r.Version, Path: "/p/" + r.Version}, nil
+				},
+				Activate: func(_ context.Context, v string) (lifecycle.ActivationResult, error) {
+					mutations++
+					return lifecycle.ActivationResult{Version: v}, nil
+				},
+				Delete: func(_ context.Context, v string) (lifecycle.DeletionResult, error) {
+					mutations++
+					return lifecycle.DeletionResult{Version: v}, nil
+				},
+				ShimInPath: func() bool { return true },
+			})
+			m = applyFilter(t, m, version)
+			key := 'i'
+			if action == "activate" {
+				key = 'u'
+			}
+			if action == "delete" {
+				m = press(t, m, tea.KeyPressMsg{Code: 'd'})
+				key = 'y'
+			}
+			updated, operation := m.Update(tea.KeyPressMsg{Code: key})
+			m = updated.(Model)
+			if operation == nil {
+				t.Fatal("action was not admitted")
+			}
+			completion := operation()
+			updated, refresh := m.Update(tea.KeyPressMsg{Code: 'r'})
+			m = runCatalogTestCmd(t, updated.(Model), refresh)
+			if _, exists := m.projection.lookup(version); exists {
+				t.Fatal("refresh did not remove the in-flight identity")
+			}
+			nextSnapshot = append([]utils.GoVersion(nil), before...)
+			if action != "delete" {
+				for i := range nextSnapshot {
+					if action == "activate" {
+						nextSnapshot[i].Active = false
+					}
+				}
+				target.Installed = true
+				target.Path = "/p/" + version
+				target.Active = action == "activate"
+				nextSnapshot = append(nextSnapshot, target)
+			}
+			updated, verify := m.Update(completion)
+			m = runCatalogTestCmd(t, updated.(Model), verify)
+			if loads != 2 || mutations != 1 || m.Status.Kind() != "success" {
+				t.Fatalf("loads=%d mutations=%d status=%q", loads, mutations, m.Status.Text())
+			}
+			got, exists := m.projection.lookup(version)
+			if action == "delete" {
+				if exists {
+					t.Fatalf("deleted identity remains: %+v", got)
+				}
+			} else if !exists || !got.Installed || got.Path != target.Path || got.Active != target.Active {
+				t.Fatalf("reconciled target = %+v, found=%v, want %+v", got, exists, target)
+			}
+			assertVersionViewsConsistent(t, m)
+		})
 	}
 }
 
@@ -531,31 +432,5 @@ func TestStaleProjectionRefilterTextIsIgnored(t *testing.T) {
 		if version != "1.30.0" && version != "1.31.0" {
 			t.Fatalf("visible version = %q after stale filter result", version)
 		}
-	}
-}
-
-// TestMissingDeleteConfirmLookupNeverInvokesDeletion verifies that when
-// the user presses Y to confirm a delete whose target version is no
-// longer in the catalog, the handler must NOT enter the Loading state
-// and must NOT issue a deletion command. The handler must short-circuit
-// via catalog lookup before dispatching the delete operation.
-func TestMissingDeleteConfirmLookupNeverInvokesDeletion(t *testing.T) {
-	m := newTestModel(t)
-	m.CurrentTab = AvailableTab
-	m.ConfirmingDelete = true
-	m.DeleteVersion = "9.9.9-nonexistent"
-
-	updated, cmd := m.Update(tea.KeyPressMsg{Code: 'Y'})
-	got := updated.(Model)
-
-	if activity := got.projection.activityState(); activity.kind != catalogActivityIdle {
-		t.Fatalf("activity = %+v, want idle when delete target is missing", activity)
-	}
-	if cmd != nil {
-		t.Fatal("expected nil command when delete target is missing from catalog")
-	}
-	// The pending delete confirmation must be cleared.
-	if got.ConfirmingDelete {
-		t.Fatal("expected ConfirmingDelete=false after missing-lookup delete confirm")
 	}
 }

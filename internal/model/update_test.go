@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"errors"
 	"reflect"
 	"strings"
@@ -8,6 +9,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/smileoniks-ctrl/govm/internal/deps"
+	"github.com/smileoniks-ctrl/govm/internal/install"
 	"github.com/smileoniks-ctrl/govm/internal/lifecycle"
 	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
@@ -328,64 +330,58 @@ func newVersionCacheTestModel(t *testing.T) Model {
 	return m
 }
 
-// TestVersionHandlersKeepCachesConsistent dispatches each of the four
-// version-mutating msgs through Update and asserts the postcondition
-// that the Available Versions list and the Installed Versions table
-// remain exact projections of the catalog afterwards.
 func TestVersionHandlersKeepCachesConsistent(t *testing.T) {
-	tests := []struct {
-		name  string
-		apply func(*Model) tea.Msg
+	for _, tt := range []struct {
+		name      string
+		key       rune
+		version   string
+		installed bool
+		active    bool
+		path      string
 	}{
-		{
-			name: "catalogLoadedMsg replaces catalog",
-			apply: func(m *Model) tea.Msg {
-				load := m.projection.startLoad(catalogLoadPurposeRefresh)
-				return catalogLoadedMsg{
-					RequestID: load.loadRequest.ID,
-					Versions: []utils.GoVersion{
-						{Version: "1.25.0", Filename: "go1.25.0.linux-amd64.tar.gz", Installed: true, Active: true, Path: "/p/1.25"},
-						{Version: "1.27.0", Filename: "go1.27.0.linux-amd64.tar.gz"},
-					},
-				}
-			},
-		},
-		{
-			name: "installSuccessMsg marks installed",
-			apply: func(m *Model) tea.Msg {
-				op := m.projection.startMutation(catalogMutationInstall, "1.25.0")
-				return installSuccessMsg{OperationID: op.id, Version: "1.25.0", Path: "/new/1.25"}
-			},
-		},
-		{
-			name: "activationSuccessMsg changes active",
-			apply: func(m *Model) tea.Msg {
-				op := m.projection.startMutation(catalogMutationActivation, "1.26.0")
-				return activationSuccessMsg{
-					OperationID: op.id,
-					Result:      lifecycle.ActivationResult{Version: "1.26.0"},
-					ShimInPath:  true,
-				}
-			},
-		},
-		{
-			name: "deletionSuccessMsg marks uninstalled",
-			apply: func(m *Model) tea.Msg {
-				op := m.projection.startMutation(catalogMutationDeletion, "1.24.4")
-				return deletionSuccessMsg{
-					OperationID: op.id,
-					Result:      lifecycle.DeletionResult{Version: "1.24.4"},
-				}
-			},
-		},
-	}
-
-	for _, tt := range tests {
+		{name: "refresh", key: 'r', version: "1.25.0", installed: true, active: true, path: "/new/1.25.0"},
+		{name: "install", key: 'i', version: "1.25.0", installed: true, path: "/new/1.25.0"},
+		{name: "activation", key: 'u', version: "1.26.0", installed: true, active: true, path: "/p/1.26.0"},
+		{name: "deletion", key: 'd', version: "1.26.0"},
+	} {
 		t.Run(tt.name, func(t *testing.T) {
 			m := newVersionCacheTestModel(t)
-			updated, _ := m.Update(tt.apply(&m))
-			got := updated.(Model)
-			assertVersionViewsConsistent(t, got)
+			calls := 0
+			m = m.BindVersionOperations(VersionOperations{
+				LoadCatalog: func(context.Context) ([]utils.GoVersion, error) {
+					calls++
+					return []utils.GoVersion{
+						{Version: "1.25.0", Installed: true, Active: true, Path: "/new/1.25.0"},
+						{Version: "1.27.0"},
+					}, nil
+				},
+				Install: func(_ context.Context, r install.Request) (install.Result, error) {
+					calls++
+					return install.Result{Version: r.Version, Path: "/new/" + r.Version}, nil
+				},
+				Activate: func(_ context.Context, version string) (lifecycle.ActivationResult, error) {
+					calls++
+					return lifecycle.ActivationResult{Version: version}, nil
+				},
+				Delete: func(_ context.Context, version string) (lifecycle.DeletionResult, error) {
+					calls++
+					return lifecycle.DeletionResult{Version: version}, nil
+				},
+				ShimInPath: func() bool { return true },
+			})
+			m = applyFilter(t, m, tt.version)
+			key := tt.key
+			if key == 'd' {
+				m = press(t, m, tea.KeyPressMsg{Code: 'd'})
+				key = 'y'
+			}
+			updated, cmd := m.Update(tea.KeyPressMsg{Code: key})
+			m = runCatalogTestCmd(t, updated.(Model), cmd)
+			v, found := m.projection.lookup(tt.version)
+			if calls != 1 || !found || v.Installed != tt.installed || v.Active != tt.active || v.Path != tt.path {
+				t.Fatalf("calls=%d, version=%+v, found=%v", calls, v, found)
+			}
+			assertVersionViewsConsistent(t, m)
 		})
 	}
 }

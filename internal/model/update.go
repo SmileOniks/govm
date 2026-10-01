@@ -157,16 +157,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Spinner, cmd = m.Spinner.Update(msg)
 		return m, cmd
 
-	case installProgressMsg:
-		return m, m.handleInstallProgress(msg)
-
-	case installProgressPollMsg:
-		return m, m.handleInstallProgressPoll(msg)
-
-	case installSuccessMsg:
-		return m, tea.Batch(m.applyCatalog(msg), m.diskUsageCmd())
-
-	case installFailureMsg, activationSuccessMsg, deletionSuccessMsg, lifecycleFailureMsg:
+	case installProgressMsg, installProgressPollMsg,
+		installSuccessMsg, installFailureMsg,
+		activationSuccessMsg, deletionSuccessMsg, lifecycleFailureMsg:
 		return m, m.applyCatalog(msg)
 	}
 

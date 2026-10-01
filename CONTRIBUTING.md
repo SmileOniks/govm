@@ -14,6 +14,16 @@ Contributions to GoVM should align with the project’s design principles:
 
  * Maintain backwards compatibility whenever possible.
 
+The Available and Installed tabs share one catalog flow in `internal/model`.
+`catalogProjectionAdapter.apply` accepts actions and asynchronous results and
+owns admission, operation IDs, dispatch, progress continuation, reconciliation,
+and publication. Model selects an identity, routes messages, and applies returned
+effects; it must not register or schedule a second copy of a catalog operation.
+Manual refresh, initial load, source checks, and reconciliation have distinct
+admission rules: do not replace them with a single busy guard. Exercise changes
+through keys/messages and the existing `VersionOperations` adapters, including
+late results and tab navigation during installation.
+
 ## Report an Issue
 
 If you have run into a bug or want to discuss a new feature, please [file an issue](https://github.com/smileoniks-ctrl/govm/issues).

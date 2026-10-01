@@ -10,7 +10,6 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/smileoniks-ctrl/govm/internal/install"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
 
 const installProgressUpdateInterval = 100 * time.Millisecond
@@ -124,9 +123,9 @@ func (m *installProgressMailbox) snapshot() install.Progress {
 	return progress
 }
 
-func (m *Model) installProgressVersionCmd(operationID uint64, v install.Request) tea.Cmd {
-	installFn := m.installWithProgress
-	fallbackInstall := m.installGo
+func (a *catalogProjectionAdapter) installProgressVersionCmd(operationID uint64, v install.Request) tea.Cmd {
+	installFn := a.installWithProgress
+	fallbackInstall := a.installGo
 	if installFn == nil {
 		installFn = func(
 			ctx context.Context,
@@ -152,19 +151,15 @@ func (m *Model) installProgressVersionCmd(operationID uint64, v install.Request)
 	}
 }
 
-func (m *Model) installVersionProgressCmd(operationID uint64, v utils.GoVersion) tea.Cmd {
-	return m.installProgressVersionCmd(operationID, buildInstallRequest(v))
-}
-
-func (m *Model) handleInstallProgress(msg installProgressMsg) tea.Cmd {
-	if msg.session == nil || !m.projection.applyProgress(msg.operationID, msg.progress) {
+func (a *catalogProjectionAdapter) handleInstallProgress(msg installProgressMsg) tea.Cmd {
+	if msg.session == nil || !a.applyProgress(msg.operationID, msg.progress) {
 		return nil
 	}
 	return msg.session.wait(false)
 }
 
-func (m *Model) handleInstallProgressPoll(msg installProgressPollMsg) tea.Cmd {
-	if msg.session == nil || !m.projection.isActiveOperation(msg.session.operationID) {
+func (a *catalogProjectionAdapter) handleInstallProgressPoll(msg installProgressPollMsg) tea.Cmd {
+	if msg.session == nil || !a.isActiveOperation(msg.session.operationID) {
 		return nil
 	}
 	return msg.session.wait(false)

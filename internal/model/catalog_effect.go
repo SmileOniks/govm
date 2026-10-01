@@ -19,10 +19,28 @@ const (
 // catalogStatus describes effects, not the transition that produced them.
 // settingsMsg completes the synchronous handshake with the Settings tab.
 type catalogStatus struct {
-	scope       catalogStatusScope
-	text        string
-	kind        string
-	settingsMsg tea.Msg
+	scope                   catalogStatusScope
+	text                    string
+	kind                    string
+	settingsMsg             tea.Msg
+	confirmDeleteVersion    string
+	clearDeleteConfirmation bool
+	refreshDiskUsage        bool
+}
+
+type catalogActionKind uint8
+
+const (
+	catalogActionInstall catalogActionKind = iota + 1
+	catalogActionActivate
+	catalogActionRequestDelete
+	catalogActionConfirmDelete
+)
+
+type catalogActionMsg struct {
+	kind    catalogActionKind
+	version string
+	tab     int
 }
 
 type catalogRefreshMsg struct {
@@ -45,6 +63,87 @@ func catalogTabStatus(text, kind string) catalogStatus {
 	return catalogStatus{scope: catalogStatusTab, text: text, kind: kind}
 }
 
+func (a *catalogProjectionAdapter) handleAction(msg catalogActionMsg) (tea.Cmd, catalogStatus) {
+	if a.state.phase != catalogOperationPhaseIdle {
+		return nil, catalogStatus{}
+	}
+	if msg.tab != AvailableTab && msg.tab != InstalledTab {
+		return nil, catalogStatus{}
+	}
+	v, ok := a.lookup(msg.version)
+	switch msg.kind {
+	case catalogActionInstall:
+		if msg.tab != AvailableTab || !ok || v.Installed {
+			return nil, catalogStatus{}
+		}
+		op := a.startMutation(catalogMutationInstall, v.Version)
+		return a.installProgressVersionCmd(op.id, buildInstallRequest(v)), catalogGlobalStatus("", "")
+	case catalogActionActivate:
+		if !ok || !v.Installed {
+			if msg.tab == AvailableTab {
+				return nil, catalogTabStatus("You need to install this version first. Press 'i' to install.", "error")
+			}
+			return nil, catalogStatus{}
+		}
+		if msg.tab == InstalledTab && v.Active {
+			return nil, catalogTabStatus(fmt.Sprintf("Go %s is already active.", v.Version), "info")
+		}
+		op := a.startMutation(catalogMutationActivation, v.Version)
+		return a.activateVersionCmd(op.id, v.Version),
+			catalogGlobalStatus(fmt.Sprintf("Switching to Go %s...", v.Version), "info")
+	case catalogActionRequestDelete, catalogActionConfirmDelete:
+		confirm := msg.kind == catalogActionConfirmDelete
+		if !confirm && msg.version == "" {
+			return nil, catalogStatus{}
+		}
+		var cmd tea.Cmd
+		var status catalogStatus
+		switch {
+		case !ok:
+			if confirm {
+				status = catalogTabStatus(fmt.Sprintf("Go %s is no longer available to delete.", msg.version), "error")
+			} else if msg.tab == AvailableTab {
+				status = catalogTabStatus("This version is not installed.", "error")
+			}
+		case !v.Installed:
+			if confirm {
+				status = catalogTabStatus(fmt.Sprintf("Go %s is no longer installed.", v.Version), "info")
+			} else if msg.tab == AvailableTab {
+				status = catalogTabStatus("This version is not installed.", "error")
+			}
+		case v.Active:
+			status = catalogTabStatus("Cannot delete active version. Switch to another version first.", "error")
+		case !confirm:
+			status = catalogTabStatus(
+				fmt.Sprintf("Are you sure you want to delete Go %s? Press Y to confirm, N to cancel.", v.Version),
+				"warning",
+			)
+			status.confirmDeleteVersion = v.Version
+		default:
+			op := a.startMutation(catalogMutationDeletion, v.Version)
+			cmd = a.deleteVersionCmd(op.id, v.Version)
+			status = catalogGlobalStatus(fmt.Sprintf("Deleting Go %s...", v.Version), "info")
+		}
+		status.clearDeleteConfirmation = confirm
+		return cmd, status
+	}
+	return nil, catalogStatus{}
+}
+
+func (a *catalogProjectionAdapter) mutationInFlight() bool {
+	return a.state.phase == catalogOperationPhaseMutating
+}
+
+func (a *catalogProjectionAdapter) canStartPrune() bool {
+	return a.state.phase == catalogOperationPhaseIdle
+}
+
+func (a *catalogProjectionAdapter) refreshInFlight() bool {
+	return a.state.phase == catalogOperationPhaseLoading ||
+		a.state.phase == catalogOperationPhaseReconciling ||
+		a.refilterPending
+}
+
 func (a *catalogProjectionAdapter) prepareInitialLoad() {
 	a.initialLoad = a.startLoad(catalogLoadPurposeInitial).loadRequest
 }
@@ -62,11 +161,20 @@ func (a *catalogProjectionAdapter) init() tea.Cmd {
 func (a *catalogProjectionAdapter) apply(msg tea.Msg) (tea.Cmd, catalogStatus) {
 	var outcome catalogProjectionOutcome
 	switch msg := msg.(type) {
+	case catalogActionMsg:
+		return a.handleAction(msg)
+	case installProgressMsg:
+		return a.handleInstallProgress(msg), catalogStatus{}
+	case installProgressPollMsg:
+		return a.handleInstallProgressPoll(msg), catalogStatus{}
 	case catalogLoadedMsg:
 		outcome = a.acceptLoad(msg.RequestID, msg.Versions)
 	case catalogLoadFailedMsg:
 		outcome = a.failLoad(msg.RequestID, msg.Err)
 	case catalogRefreshMsg:
+		if msg.manual && a.refreshInFlight() {
+			return nil, catalogStatus{}
+		}
 		outcome = a.startLoad(catalogLoadPurposeRefresh)
 	case catalogSourceCheckMsg:
 		outcome = a.startLoad(catalogLoadPurposeRefresh)
@@ -101,7 +209,11 @@ func (a *catalogProjectionAdapter) apply(msg tea.Msg) (tea.Cmd, catalogStatus) {
 	default:
 		return nil, catalogStatus{}
 	}
-	return a.effect(outcome, msg)
+	cmd, status := a.effect(outcome, msg)
+	if _, installed := msg.(installSuccessMsg); installed && outcome.receipt.operation.id != 0 {
+		status.refreshDiskUsage = true
+	}
+	return cmd, status
 }
 
 func (a *catalogProjectionAdapter) effect(
@@ -252,6 +364,14 @@ func verifyingStatus(operation catalogOperation) string {
 }
 
 func (m *Model) applyCatalogStatus(status catalogStatus) {
+	if status.clearDeleteConfirmation {
+		m.ConfirmingDelete = false
+		m.DeleteVersion = ""
+	}
+	if status.confirmDeleteVersion != "" {
+		m.ConfirmingDelete = true
+		m.DeleteVersion = status.confirmDeleteVersion
+	}
 	switch status.scope {
 	case catalogStatusTab:
 		m.Status.SetTab(status.text, status.kind)
@@ -266,5 +386,8 @@ func (m *Model) applyCatalogStatus(status catalogStatus) {
 func (m *Model) applyCatalog(msg tea.Msg) tea.Cmd {
 	cmd, status := m.projection.apply(msg)
 	m.applyCatalogStatus(status)
+	if status.refreshDiskUsage {
+		return tea.Batch(cmd, m.diskUsageCmd())
+	}
 	return cmd
 }
