@@ -51,6 +51,19 @@ type catalogItemDelegate struct {
 	versionStyle lipgloss.Style
 }
 
+func (d catalogItemDelegate) headerHeight(m list.Model) int {
+	if !m.ShowTitle() && !(m.ShowFilter() && m.FilteringEnabled()) {
+		return 0
+	}
+	content := ""
+	if m.ShowFilter() && m.FilterState() == list.Filtering {
+		content = m.Styles.TitleBar.Render(m.FilterInput.View())
+	} else if m.ShowTitle() {
+		content = m.Styles.TitleBar.Render(m.Styles.Title.Render(m.Title))
+	}
+	return lipgloss.Height(content)
+}
+
 const listEllipsis = "…"
 
 // Render mirrors list.DefaultDelegate.Render except for how a filtered

@@ -7,28 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
-
-func TestViewUsesModernZones(t *testing.T) {
-	m := newTestModel(t)
-
-	prev := utils.Version
-	utils.Version = "v9.9.9-test"
-	defer func() { utils.Version = prev }()
-
-	view := stripANSI(m.View().Content)
-
-	for _, want := range []string{"GoVM", "Go Version Manager", "v9.9.9-test", "● Available", "○ Installed", "✓ Successfully installed Go 1.24.4", "i install", "u use", "d delete", "r refresh", "f find", "? help", "q / ctrl+c quit"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected view to contain %q, got:\n%s", want, view)
-		}
-	}
-
-	if strings.Contains(view, "Press 'i'") || strings.Contains(view, "[ Available Versions ]") {
-		t.Fatalf("expected modern tabs and help text, got:\n%s", view)
-	}
-}
 
 func TestGoDevErrorKeepsTUIClosable(t *testing.T) {
 	m := newTestModel(t)
@@ -42,7 +21,7 @@ func TestGoDevErrorKeepsTUIClosable(t *testing.T) {
 
 	view := stripANSI(m.View().Content)
 
-	for _, want := range []string{"GoVM", "Available", "failed to connect to go.dev", "r refresh", "q / ctrl+c quit"} {
+	for _, want := range []string{"GoVM", "Available", "failed to connect to go.dev"} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("expected view to contain %q, got:\n%s", want, view)
 		}
@@ -105,29 +84,6 @@ func TestRenderContentCanvasPreservesANSIAndDisplayWidth(t *testing.T) {
 	}
 }
 
-func TestSettingsTabRendersRowsAndHelp(t *testing.T) {
-	m := newTestModel(t)
-	m.CurrentTab = SettingsTab
-
-	view := stripANSI(m.View().Content)
-
-	for _, want := range []string{
-		"Settings",
-		"Deps display: Direct only",
-		"Theme: Current",
-		"Deps backups: 10",
-		"Distribution source: https://go.dev/dl/",
-		"Upgrade notice: On",
-		"↑/↓",
-		"enter",
-		"q",
-	} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected settings view to contain %q, got:\n%s", want, view)
-		}
-	}
-}
-
 func TestDepsTabRenders(t *testing.T) {
 	m := newTestModel(t)
 
@@ -156,53 +112,6 @@ func TestMaxInt(t *testing.T) {
 	}
 	if maxInt(4, 4) != 4 {
 		t.Fatal("expected 4")
-	}
-}
-
-func TestRenderHelp_ConfirmsDeleteVariant(t *testing.T) {
-	m := newVersionCacheTestModel(t)
-	m = applyFilter(t, m, "1.26.0")
-	m = press(t, m, tea.KeyPressMsg{Code: 'd'})
-	got := renderHelpBar(testTheme(), m, 80)
-	if !strings.Contains(stripANSI(got), "confirm") {
-		t.Fatalf("expected confirm hint, got: %s", got)
-	}
-	if !strings.Contains(stripANSI(got), "cancel") {
-		t.Fatalf("expected cancel hint, got: %s", got)
-	}
-}
-
-func TestRenderHelp_InstalledIncludesPrune(t *testing.T) {
-	got := stripANSI(renderHelpBar(testTheme(), Model{CurrentTab: InstalledTab}, 80))
-	if !strings.Contains(got, "p prune") {
-		t.Fatalf("expected prune hint, got: %s", got)
-	}
-}
-
-func TestRenderHelp_RestoreUsesSelectedAction(t *testing.T) {
-	tests := []struct {
-		name             string
-		restoreChoiceYes bool
-		want             string
-	}{
-		{name: "restore selected", restoreChoiceYes: true, want: "enter restore"},
-		{name: "cancel selected", restoreChoiceYes: false, want: "enter cancel"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := stripANSI(renderHelpBar(testTheme(), Model{CurrentTab: DepsTab, deps: depsTab{dialog: depsDialog{kind: dialogRestore, choiceYes: tt.restoreChoiceYes}}}, 80))
-			if !strings.Contains(got, tt.want) {
-				t.Fatalf("expected help to contain %q, got %q", tt.want, got)
-			}
-		})
-	}
-}
-
-func TestRenderHelp_DepsTruncatesToWidth(t *testing.T) {
-	got := renderHelpBar(testTheme(), Model{CurrentTab: DepsTab}, 20)
-	if got == "" {
-		t.Fatal("expected non-empty help for deps")
 	}
 }
 

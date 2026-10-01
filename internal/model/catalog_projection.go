@@ -144,7 +144,8 @@ type catalogProjectionRefilterMsg struct {
 type catalogProjectionAdapter struct {
 	catalog             versionCatalog
 	list                list.Model
-	installedTable      table.Model
+	delegate            catalogItemDelegate
+	installedTable      rowTable
 	generation          uint64
 	pendingRestore      catalogProjectionPendingRestore
 	state               catalogOperationState
@@ -177,7 +178,8 @@ func (a *catalogProjectionAdapter) bindOperations(operations VersionOperations) 
 // Keeping widget construction here lets Model integration depend on the
 // adapter's role methods instead of owning a second catalog projection.
 func newCatalogProjectionAdapter(theme styles.Theme) catalogProjectionAdapter {
-	available := list.New([]list.Item{}, listDefaultDelegate(theme), 0, 0)
+	delegate := listDefaultDelegate(theme)
+	available := list.New([]list.Item{}, delegate, 0, 0)
 	available.Title = "Available Versions"
 	available.FilterInput.Prompt = "Find: "
 	// The widget opens its filter on "/" by default; govm exposes the
@@ -190,16 +192,17 @@ func newCatalogProjectionAdapter(theme styles.Theme) catalogProjectionAdapter {
 	available.SetShowHelp(false)
 	available.SetShowPagination(false)
 
-	installed := table.New(
-		table.WithColumns(installedTableColumns(defaultConstructionWidth)),
-		table.WithFocused(true),
-		table.WithHeight(10),
+	installed := newRowTable(
+		installedTableColumns(defaultConstructionWidth),
+		defaultConstructionWidth,
+		10,
+		tableStyles(theme),
 	)
-	installed.SetStyles(tableStyles(theme))
 
 	return catalogProjectionAdapter{
 		catalog:        newVersionCatalog(theme),
 		list:           available,
+		delegate:       delegate,
 		installedTable: installed,
 	}
 }
@@ -719,23 +722,30 @@ func (a *catalogProjectionAdapter) restoreInstalledSelection(version string, old
 	a.installedTable.SetCursor(target)
 }
 
-func (a *catalogProjectionAdapter) resize(width, height int) {
-	a.list.SetSize(width, height)
-	a.installedTable.SetWidth(width)
-	a.installedTable.SetHeight(height)
-	a.installedTable.SetColumns(installedTableColumns(width))
+func (a *catalogProjectionAdapter) resize(width, availableHeight, installedHeight int) {
+	a.list.SetSize(width, availableHeight)
+	a.installedTable.Resize(width, installedHeight, installedTableColumns(width))
 }
 
 func (a *catalogProjectionAdapter) updateAvailable(msg tea.Msg) tea.Cmd {
 	var cmd tea.Cmd
 	a.list, cmd = a.list.Update(msg)
+	if _, ok := msg.(tea.KeyPressMsg); ok && !a.list.SettingFilter() {
+		a.rememberAvailableSelection()
+	}
 	return cmd
 }
 
 func (a *catalogProjectionAdapter) updateInstalled(msg tea.Msg) tea.Cmd {
-	var cmd tea.Cmd
-	a.installedTable, cmd = a.installedTable.Update(msg)
-	return cmd
+	if key, ok := msg.(tea.KeyPressMsg); ok {
+		switch key.String() {
+		case "up", "k":
+			a.installedTable.Move(-1)
+		case "down", "j":
+			a.installedTable.Move(1)
+		}
+	}
+	return nil
 }
 
 func (a *catalogProjectionAdapter) update(msg tea.Msg) tea.Cmd {
@@ -771,6 +781,37 @@ func (a *catalogProjectionAdapter) setAvailableFilterText(filter string) {
 
 func (a *catalogProjectionAdapter) selectAvailable(index int) {
 	a.list.Select(index)
+	a.rememberAvailableSelection()
+}
+
+func (a *catalogProjectionAdapter) rememberAvailableSelection() {
+	pending := &a.pendingRestore
+	if pending.active && pending.generation == a.generation && pending.filterText == a.list.FilterInput.Value() {
+		pending.version, pending.index = a.selectedAvailableVersion(), a.list.Index()
+	}
+}
+
+func (a *catalogProjectionAdapter) selectAvailableVersion(version string) bool {
+	for index, item := range a.list.VisibleItems() {
+		if value, ok := item.(styles.Item); ok && value.Name == version {
+			a.selectAvailable(index)
+			return true
+		}
+	}
+	return false
+}
+
+func (a *catalogProjectionAdapter) moveAvailableSelection(delta int) {
+	count, index := len(a.list.VisibleItems()), a.list.Index()
+	if count == 0 || (delta < 0 && index == 0) || (delta > 0 && index >= count-1) {
+		return
+	}
+	if delta < 0 {
+		a.list.CursorUp()
+	} else {
+		a.list.CursorDown()
+	}
+	a.rememberAvailableSelection()
 }
 
 func (a *catalogProjectionAdapter) selectedAvailableItem() *styles.Item {
@@ -790,7 +831,8 @@ func (a *catalogProjectionAdapter) setTheme(theme styles.Theme) catalogProjectio
 	if !a.catalog.setTheme(theme) {
 		return catalogProjectionOutcome{kind: catalogProjectionOutcomeNoop}
 	}
-	a.list.SetDelegate(listDefaultDelegate(theme))
+	a.delegate = listDefaultDelegate(theme)
+	a.list.SetDelegate(a.delegate)
 	a.installedTable.SetStyles(tableStyles(theme))
 	return catalogProjectionOutcome{
 		kind: catalogProjectionOutcomePublished,
@@ -816,16 +858,56 @@ func (a *catalogProjectionAdapter) availableModel() list.Model {
 	return a.list
 }
 
-func (a *catalogProjectionAdapter) installedModel() table.Model {
+func (a *catalogProjectionAdapter) installedModel() rowTable {
 	return a.installedTable
 }
 
-func (a *catalogProjectionAdapter) availableView() string {
-	return a.list.View()
+func (a *catalogProjectionAdapter) availableView() renderedSurface {
+	surface := renderedSurface{content: a.list.View()}
+	if a.list.SettingFilter() {
+		return surface
+	}
+	visible := a.list.VisibleItems()
+	if len(visible) == 0 {
+		return surface
+	}
+	start, end := a.list.Paginator.GetSliceBounds(len(visible))
+	headerHeight := a.delegate.headerHeight(a.list)
+	bodyHeight := max(0, a.list.Height()-headerHeight)
+	surface.targets = make([]mouseTarget, 0, end-start+1)
+	surface.targets = append(surface.targets, mouseTarget{
+		rect:   cellRect{y: headerHeight, width: a.list.Width(), height: bodyHeight},
+		action: mouseAction{kind: mouseScroll},
+	})
+	for index := start; index < end; index++ {
+		item, ok := visible[index].(styles.Item)
+		if !ok {
+			continue
+		}
+		surface.targets = append(surface.targets, mouseTarget{
+			rect: cellRect{
+				y:     headerHeight + (index-start)*(a.delegate.Height()+a.delegate.Spacing()),
+				width: a.list.Width(), height: a.delegate.Height(),
+			},
+			action: mouseAction{kind: mouseAvailableRow, index: index, identity: item.Name},
+		})
+	}
+	return surface.translated(0, 0, cellRect{width: a.list.Width(), height: a.list.Height()})
 }
 
-func (a *catalogProjectionAdapter) installedView() string {
-	return a.installedTable.View()
+func (a *catalogProjectionAdapter) installedView() renderedSurface {
+	surface := a.installedTable.render(mouseInstalledRow)
+	rows := a.installedTable.Rows()
+	for index := range surface.targets {
+		target := &surface.targets[index]
+		if target.action.kind == mouseInstalledRow {
+			row := rows[target.action.index]
+			if len(row) > 0 {
+				target.action.identity = row[0]
+			}
+		}
+	}
+	return surface
 }
 
 func (a *catalogProjectionAdapter) lookup(version string) (utils.GoVersion, bool) {

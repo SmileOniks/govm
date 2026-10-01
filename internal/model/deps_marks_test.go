@@ -238,7 +238,7 @@ func TestDialogSpaceTogglesScopeBetweenAllAndCursorModule(t *testing.T) {
 	if got := m.deps.dialog.explicitModules; len(got) != 1 || got[0] != "example.com/b" {
 		t.Fatalf("explicit modules = %v, want cursor module", got)
 	}
-	rendered := stripANSI(m.deps.dialog.render(testTheme(), m.deps, viewportSize{Width: 64, Height: 24}))
+	rendered := stripANSI(m.deps.dialog.render(testTheme(), m.deps, viewportSize{Width: 64, Height: 24}).content)
 	for _, want := range []string{"Scope:", "All", "Current"} {
 		if !strings.Contains(rendered, want) {
 			t.Fatalf("dialog missing %q:\n%s", want, rendered)
@@ -275,7 +275,7 @@ func TestDialogScopeStartsMarkedAndKeepsLevelAcrossToggle(t *testing.T) {
 	if got := entryPaths(m.deps.dialog.updateEntries); strings.Join(got, ",") != "example.com/a" {
 		t.Fatalf("marked-scope entries = %v", got)
 	}
-	rendered := stripANSI(m.deps.dialog.render(testTheme(), m.deps, viewportSize{Width: 64, Height: 24}))
+	rendered := stripANSI(m.deps.dialog.render(testTheme(), m.deps, viewportSize{Width: 64, Height: 24}).content)
 	if !strings.Contains(rendered, "Marked (1)") {
 		t.Fatalf("dialog missing marked label:\n%s", rendered)
 	}
@@ -339,7 +339,7 @@ func TestUpdateDialogArrowsCycleLevelAndRebuildPlan(t *testing.T) {
 	if m.deps.dialog.level != deps.LevelLatest {
 		t.Fatalf("expected wrap to latest, got %s", m.deps.dialog.level)
 	}
-	view := stripANSI(m.deps.dialog.render(testTheme(), m.deps, viewportSize{Width: 80, Height: 24}))
+	view := stripANSI(m.deps.dialog.render(testTheme(), m.deps, viewportSize{Width: 80, Height: 24}).content)
 	if !strings.Contains(view, "Level:") || !strings.Contains(view, "v1.1.0") {
 		t.Fatalf("dialog view missing level line or entry:\n%s", view)
 	}
@@ -356,7 +356,7 @@ func TestUpdateDialogEmptyPlanConfirmEndsAsNoUpdates(t *testing.T) {
 	if m.deps.dialog.level != deps.LevelPatch || len(m.deps.dialog.updateEntries) != 0 {
 		t.Fatalf("dialog = %#v, want empty patch plan", m.deps.dialog)
 	}
-	view := stripANSI(m.deps.dialog.render(testTheme(), m.deps, viewportSize{Width: 80, Height: 24}))
+	view := stripANSI(m.deps.dialog.render(testTheme(), m.deps, viewportSize{Width: 80, Height: 24}).content)
 	if !strings.Contains(view, "No updates available at the patch level") {
 		t.Fatalf("dialog view:\n%s", view)
 	}
@@ -366,32 +366,5 @@ func TestUpdateDialogEmptyPlanConfirmEndsAsNoUpdates(t *testing.T) {
 	}
 	if !strings.Contains(m.Status.Text(), "at the patch level") {
 		t.Fatalf("status = %q", m.Status.Text())
-	}
-}
-
-func TestDepsHintBarAndOverlayDocumentMarkKeys(t *testing.T) {
-	bar := stripANSI(renderHelpBar(testTheme(), Model{CurrentTab: DepsTab}, 120))
-	for _, want := range []string{"space mark", "a mark all / none", "u update"} {
-		if !strings.Contains(bar, want) {
-			t.Fatalf("hint bar missing %q: %s", want, bar)
-		}
-	}
-	if !hasBinding(tabKeyBindings(DepsTab), "a") {
-		t.Fatal("Deps section must document the a key")
-	}
-	if !hasBinding(dialogKeyBindings(depsDialog{kind: dialogUpdate}), "↑/↓ k/j") {
-		t.Fatal("update dialog section must document the level keys")
-	}
-	// The scope key is offered only when there is an explicit set to switch to.
-	if hasBinding(dialogKeyBindings(depsDialog{kind: dialogUpdate}), "space") {
-		t.Fatal("update dialog without an explicit set must not offer the scope key")
-	}
-	withScope := depsDialog{kind: dialogUpdate, explicitModules: []string{"example.com/a"}}
-	if !hasBinding(dialogKeyBindings(withScope), "space") {
-		t.Fatal("update dialog with an explicit set must document the scope key")
-	}
-	dialogBar := stripANSI(renderHelpBar(testTheme(), Model{CurrentTab: DepsTab, deps: depsTab{dialog: withScope}}, 120))
-	if !strings.Contains(dialogBar, "space scope") {
-		t.Fatalf("dialog hint bar missing scope key: %s", dialogBar)
 	}
 }

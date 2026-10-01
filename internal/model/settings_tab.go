@@ -421,4 +421,4 @@ func (e settingsStatus) withValuesChanged() settingsStatus {
 }
 
 // view renders the tab's content canvas.
-func (s settingsTab) view() string { return renderSettingsView(s) }
+func (s settingsTab) view(width int) renderedSurface { return renderSettingsView(s, width) }

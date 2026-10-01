@@ -44,12 +44,14 @@ type Model struct {
 	// HelpVisible reports whether the Help overlay (opened with "?")
 	// is showing. While it is open every key except ?, esc, and
 	// ctrl+c is swallowed, so no action fires underneath it.
-	HelpVisible bool
-	Width       int
-	Height      int
-	TermWidth   int
-	TermHeight  int
-	Layout      styles.LayoutMode
+	HelpVisible      bool
+	Width            int
+	Height           int
+	TermWidth        int
+	TermHeight       int
+	Layout           styles.LayoutMode
+	mouseRevision    uint64
+	mouseWindowKnown bool
 
 	// theme is the immutable rendering snapshot used by View and every
 	// renderer. main.go builds it once from settings at startup and
@@ -209,7 +211,7 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) viewHeight() int {
-	if m.Height > 0 {
+	if m.mouseWindowKnown || m.Height > 0 {
 		return m.Height
 	}
 	available := m.projection.availableModel()
@@ -224,7 +226,7 @@ func (m Model) viewHeight() int {
 // open there: it would not render, and silently remembering an open
 // overlay across a resize would be surprising.
 func (m Model) inMinimumViewport() bool {
-	if m.TermWidth > 0 || m.TermHeight > 0 || (m.Width == 1 && m.Height == 1) {
+	if m.mouseWindowKnown || m.TermWidth > 0 || m.TermHeight > 0 || (m.Width == 1 && m.Height == 1) {
 		return m.TermWidth < styles.MinTermWidth || m.TermHeight < styles.MinTermHeight
 	}
 	return false

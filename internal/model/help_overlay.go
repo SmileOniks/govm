@@ -22,7 +22,7 @@ func helpOverlaySections(m Model) []helpSection {
 // is no scrolling: when the viewport is too short the bottom of the
 // content is truncated, because the dialog box border and padding
 // cost four rows of the viewport height.
-func renderHelpOverlay(t styles.Theme, m Model, viewport viewportSize) string {
+func renderHelpOverlay(t styles.Theme, m Model, viewport viewportSize) renderedSurface {
 	sections := helpOverlaySections(m)
 
 	lines := []string{t.DialogTitleStyle.Render("Keyboard Shortcuts")}
@@ -45,13 +45,10 @@ func renderHelpOverlay(t styles.Theme, m Model, viewport viewportSize) string {
 		}
 	}
 
-	// dialog border (2 rows) + vertical padding (2 rows)
-	maxLines := viewport.Height - 4
-	if maxLines < 1 {
-		maxLines = 1
-	}
+	footer := renderControls(t, []helpSection{helpOverlayBarBindings()}, dialogWidth(viewport)-6, false)
+	maxLines := dialogBodyHeight(t, viewport, footer)
 	if len(lines) > maxLines {
 		lines = lines[:maxLines]
 	}
-	return renderDialog(t, strings.Join(lines, "\n"), false, viewport)
+	return renderDialog(t, joinSurfaces(renderedSurface{content: strings.Join(lines, "\n")}, footer), false, viewport)
 }

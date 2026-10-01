@@ -57,7 +57,7 @@ func benchModel(b *testing.B) Model {
 	} else {
 		_ = cmd
 	}
-	m.projection.resize(80, 24)
+	m.projection.resize(80, 24, 24)
 	m = loadDeps(b, m, depItems)
 	m.CurrentTab = AvailableTab
 	m.Width = 80
@@ -247,7 +247,7 @@ func BenchmarkOverlayDialog(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				benchStringSink = overlayDialog(bg, dlg, size)
+				benchStringSink = overlayDialog(renderedSurface{content: bg}, renderedSurface{content: dlg}, size).content
 			}
 		})
 	}
@@ -297,8 +297,8 @@ func BenchmarkRenderDependencyUpdateDialog(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		benchStringSink = updateYes.render(theme, depsTab{}, viewportSize{Width: 64, Height: 20})
-		benchStringSink = updateNo.render(theme, depsTab{}, viewportSize{Width: 64, Height: 20})
+		benchStringSink = updateYes.render(theme, depsTab{}, viewportSize{Width: 64, Height: 20}).content
+		benchStringSink = updateNo.render(theme, depsTab{}, viewportSize{Width: 64, Height: 20}).content
 	}
 }
 
@@ -324,9 +324,9 @@ func BenchmarkRenderDependencyDialogsMinimumViewport(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				viewport := viewportSize{Width: width, Height: 20}
-				benchStringSink = checksDialog.render(theme, depsTab{}, viewport)
-				benchStringSink = rollbackDialog.render(theme, depsTab{}, viewport)
-				benchStringSink = restoreDialog.render(theme, restoreDeps, viewport)
+				benchStringSink = checksDialog.render(theme, depsTab{}, viewport).content
+				benchStringSink = rollbackDialog.render(theme, depsTab{}, viewport).content
+				benchStringSink = restoreDialog.render(theme, restoreDeps, viewport).content
 			}
 		})
 	}

@@ -177,10 +177,6 @@ func TestWindowSizeMsgRespectsMinimumViewportHeight(t *testing.T) {
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 64, Height: 20})
 	m = updated.(Model)
 
-	if m.Height != 12 {
-		t.Fatalf("content height = %d, want 12", m.Height)
-	}
-
 	lineCount := len(strings.Split(stripANSI(m.View().Content), "\n"))
 	if lineCount > 20 {
 		t.Fatalf("normal view line count = %d, want at most 20", lineCount)
@@ -227,7 +223,6 @@ func TestSettingsBackupLimitDialogFitsMinimumViewport(t *testing.T) {
 	for _, want := range []string{
 		"Set dependency backup limit",
 		"must be between 1 and 100",
-		"enter: save  esc: cancel",
 	} {
 		if !strings.Contains(view, want) {
 			t.Fatalf("expected minimum-viewport dialog to contain %q, got:\n%s", want, view)

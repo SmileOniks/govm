@@ -31,7 +31,6 @@ func TestInstalledTab_UKeyTriggersSwitchVersion(t *testing.T) {
 		},
 		ShimInPath: func() bool { return true },
 	})
-	focusInstalled(&m)
 	// Move the cursor to the non-active row (1.26.0).
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m = updated.(Model)

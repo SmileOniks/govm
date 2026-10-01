@@ -8,7 +8,7 @@ import (
 	"github.com/smileoniks-ctrl/govm/internal/styles"
 )
 
-func renderDepsBackupLimitDialog(t styles.Theme, settings settingsTab, viewport viewportSize) string {
+func renderDepsBackupLimitDialog(t styles.Theme, settings settingsTab, viewport viewportSize) renderedSurface {
 	errMessage := settings.depsBackupLimitInputErr
 	if errMessage == "" && settings.depsBackupLimitInput.Err != nil {
 		errMessage = settings.depsBackupLimitInput.Err.Error()
@@ -27,20 +27,15 @@ func renderDepsBackupLimitDialog(t styles.Theme, settings settingsTab, viewport 
 	if errMessage != "" {
 		lines = append(lines, t.DialogWarningStyle.Render(errMessage))
 	}
-	lines = append(lines,
-		"",
-		t.DialogMutedStyle.Render("enter: save  esc: cancel"),
-	)
-
-	return renderDialog(
-		t,
-		lipgloss.JoinVertical(lipgloss.Left, lines...),
-		errMessage != "",
-		viewport,
-	)
+	footer := renderControls(t, []helpSection{editingKeyBindings(false)}, dialogWidth(viewport)-6, false)
+	if budget := dialogBodyHeight(t, viewport, footer); len(lines) > budget {
+		lines = lines[:budget]
+	}
+	body := renderedSurface{content: lipgloss.JoinVertical(lipgloss.Left, lines...)}
+	return renderDialog(t, joinSurfaces(body, footer), errMessage != "", viewport)
 }
 
-func renderDistributionSourceDialog(t styles.Theme, settings settingsTab, viewport viewportSize) string {
+func renderDistributionSourceDialog(t styles.Theme, settings settingsTab, viewport viewportSize) renderedSurface {
 	errMessage := settings.distributionSourceInputErr
 	if errMessage == "" && settings.distributionSourceInput.Err != nil {
 		errMessage = settings.distributionSourceInput.Err.Error()
@@ -58,15 +53,15 @@ func renderDistributionSourceDialog(t styles.Theme, settings settingsTab, viewpo
 	if errMessage != "" {
 		lines = append(lines, t.DialogWarningStyle.Render(errMessage))
 	}
-	lines = append(lines,
-		"",
-		t.DialogMutedStyle.Render("enter: check and save  r: reset to official  esc: cancel"),
-	)
-
-	return renderDialog(
+	footer := renderControls(
 		t,
-		lipgloss.JoinVertical(lipgloss.Left, lines...),
-		errMessage != "",
-		viewport,
+		[]helpSection{editingKeyBindings(true)},
+		dialogWidth(viewport)-6,
+		settings.checkingDistributionSource,
 	)
+	if budget := dialogBodyHeight(t, viewport, footer); len(lines) > budget {
+		lines = lines[:budget]
+	}
+	body := renderedSurface{content: lipgloss.JoinVertical(lipgloss.Left, lines...)}
+	return renderDialog(t, joinSurfaces(body, footer), errMessage != "", viewport)
 }

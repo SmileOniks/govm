@@ -128,9 +128,7 @@ func (s *depsTab) update(msg tea.Msg) (tea.Cmd, depsStatus) {
 		deps.RollbackDoneEvent:
 		return s.handleCycleEvent(msg.(deps.Event))
 	}
-	var cmd tea.Cmd
-	s.table, cmd = s.table.Update(msg)
-	return cmd, depsStatus{}
+	return nil, depsStatus{}
 }
 
 // replaceDependencies installs a fresh dependency list and drops the
@@ -189,10 +187,12 @@ func (s *depsTab) handleKey(msg tea.KeyPressMsg) (tea.Cmd, depsStatus) {
 		return s.toggleMark()
 	case "a":
 		return s.toggleMarkAll()
-	case "up", "down", "k", "j":
-		var cmd tea.Cmd
-		s.table, cmd = s.table.Update(msg)
-		return cmd, depsStatus{}
+	case "up", "k":
+		s.table.Move(-1)
+		return nil, depsStatus{}
+	case "down", "j":
+		s.table.Move(1)
+		return nil, depsStatus{}
 	}
 	return nil, depsStatus{}
 }
@@ -268,14 +268,25 @@ func (s *depsTab) toggleMarkAll() (tea.Cmd, depsStatus) {
 }
 
 // view renders the tab's content canvas.
-func (s depsTab) view() string { return s.table.View() }
+func (s depsTab) view() renderedSurface {
+	surface := s.table.render(mouseDependencyRow)
+	for index := range surface.targets {
+		target := &surface.targets[index]
+		if target.action.kind == mouseDependencyRow || target.action.kind == mouseDependencyMark {
+			if row := target.action.index; row >= 0 && row < len(s.rowPaths) {
+				target.action.identity = s.rowPaths[row]
+			}
+		}
+	}
+	return surface
+}
 
 // dialogActive reports whether one of the tab's dialogs owns the
 // keyboard; the Model's Input context resolver reads it.
 func (s depsTab) dialogActive() bool { return s.dialog.active() }
 
 // dialogView renders the open dialog for the overlay.
-func (s depsTab) dialogView(t styles.Theme, viewport viewportSize) string {
+func (s depsTab) dialogView(t styles.Theme, viewport viewportSize) renderedSurface {
 	return s.dialog.render(t, s, viewport)
 }
 

@@ -180,7 +180,7 @@ func TestRenderHelpOverlayTruncatesToViewport(t *testing.T) {
 	// The full content (title + Available section + Global section)
 	// is taller than six rows; the overlay must truncate instead of
 	// overflowing the viewport.
-	got := renderHelpOverlay(testTheme(), m, viewportSize{Width: 64, Height: 6})
+	got := renderHelpOverlay(testTheme(), m, viewportSize{Width: 64, Height: 6}).content
 	lines := strings.Split(stripANSI(got), "\n")
 	if len(lines) > 6 {
 		t.Fatalf("overlay height = %d lines, want <= 6:\n%s", len(lines), got)

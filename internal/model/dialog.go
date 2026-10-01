@@ -22,26 +22,65 @@ func dialogWidth(viewport viewportSize) int {
 	return min(64, width)
 }
 
+func dialogBodyHeight(t styles.Theme, viewport viewportSize, footer renderedSurface) int {
+	height := viewport.Height
+	if height <= 0 {
+		height = 24
+	}
+	return max(1, height-t.DialogBoxStyle.GetVerticalFrameSize()-surfaceHeight(footer))
+}
+
+func surfaceHeight(surface renderedSurface) int {
+	if surface.content == "" {
+		return 0
+	}
+	return len(strings.Split(surface.content, "\n"))
+}
+
+func renderDialogControls(t styles.Theme, width int) renderedSurface {
+	section := dialogGlobalKeyBindings()
+	// The modal footer uses a compact quit label; its canonical key still
+	// comes from the registry shared with the ordinary context controls.
+	section.bindings[1].mouseControls[0].label = "q quit"
+	return renderControls(t, []helpSection{section}, width, false)
+}
+
 // renderDialog wraps content in the themed dialog border box. It takes
 // the theme as a parameter rather than reading package-level style
 // state; the previous init()/rebuildDialogStyles machinery is gone
 // along with the style vars it maintained.
-func renderDialog(t styles.Theme, content string, errorStyle bool, viewport viewportSize) string {
+func renderDialog(t styles.Theme, surface renderedSurface, errorStyle bool, viewport viewportSize) renderedSurface {
 	width := dialogWidth(viewport)
-	contentWidth := max(1, width-6)
-	lines := strings.Split(content, "\n")
-	for i, line := range lines {
-		lines[i] = ansi.Cut(line, 0, contentWidth)
-	}
-
 	style := t.DialogBoxStyle
 	if errorStyle {
 		style = t.DialogErrorBoxStyle
 	}
-	return style.Width(width).Render(strings.Join(lines, "\n"))
+	contentWidth := max(1, width-style.GetHorizontalFrameSize())
+	contentHeight := max(1, viewport.Height-style.GetVerticalFrameSize())
+	lines := strings.Split(surface.content, "\n")
+	if len(lines) > contentHeight {
+		lines = lines[:contentHeight]
+	}
+	targets := make([]mouseTarget, 0, len(surface.targets))
+	left := style.GetPaddingLeft() + style.GetBorderLeftSize()
+	top := style.GetPaddingTop() + style.GetBorderTopSize()
+	for row, line := range lines {
+		lines[row] = ansi.Cut(line, 0, contentWidth)
+		for _, target := range surface.targets {
+			part := target.rect.intersect(cellRect{y: row, width: contentWidth, height: 1})
+			if part.width <= 0 || part.height <= 0 {
+				continue
+			}
+			part.x += left
+			part.y += top
+			target.rect = part
+			targets = append(targets, target)
+		}
+	}
+	return renderedSurface{content: style.Width(width).Render(strings.Join(lines, "\n")), targets: targets}
 }
 
-func overlayDialog(background, dialog string, viewport viewportSize) string {
+func overlayDialog(background, dialog renderedSurface, viewport viewportSize) renderedSurface {
 	width, height := viewport.Width, viewport.Height
 	if width < 1 {
 		width = 80
@@ -50,8 +89,8 @@ func overlayDialog(background, dialog string, viewport viewportSize) string {
 		height = 24
 	}
 
-	dialogLines := strings.Split(strings.TrimRight(dialog, "\n"), "\n")
-	bgLines := strings.Split(background, "\n")
+	dialogLines := strings.Split(strings.TrimRight(dialog.content, "\n"), "\n")
+	bgLines := strings.Split(background.content, "\n")
 	if len(bgLines) > height {
 		bgLines = bgLines[:height]
 	}
@@ -76,6 +115,7 @@ func overlayDialog(background, dialog string, viewport viewportSize) string {
 	}
 	dialogLines = dialogLines[:endRow-startRow]
 
+	targets := make([]mouseTarget, 0, len(dialog.targets))
 	for i, dline := range dialogLines {
 		row := startRow + i
 		bgLine := bgLines[row]
@@ -86,9 +126,21 @@ func overlayDialog(background, dialog string, viewport viewportSize) string {
 			col = (bgW - dW) / 2
 		}
 		bgLines[row] = spliceCentered(bgLine, dline, col, bgW, dW)
+		for _, target := range dialog.targets {
+			part := target.rect.intersect(cellRect{y: i, width: dW, height: 1})
+			if part.width <= 0 || part.height <= 0 {
+				continue
+			}
+			part.x += col
+			part.y = row
+			target.rect = part.intersect(cellRect{y: row, width: min(width, bgW), height: 1})
+			if target.rect.width > 0 {
+				targets = append(targets, target)
+			}
+		}
 	}
 
-	return strings.Join(bgLines, "\n")
+	return renderedSurface{content: strings.Join(bgLines, "\n"), targets: targets}
 }
 
 func spliceCentered(bg, overlay string, col, bgW, overlayW int) string {

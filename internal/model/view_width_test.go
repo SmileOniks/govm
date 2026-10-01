@@ -168,14 +168,6 @@ func TestOverlayModalsRespectPhysicalViewport(t *testing.T) {
 					}
 				}
 
-				if modal.name == "dependency backup limit" {
-					if !strings.Contains(content, "enter: save  esc: cancel") {
-						t.Fatalf("backup-limit dialog footer is missing:\n%s", content)
-					}
-					if !strings.Contains(content, "╰") {
-						t.Fatalf("backup-limit dialog bottom border is missing:\n%s", content)
-					}
-				}
 			})
 		}
 	}
@@ -208,7 +200,9 @@ func TestViewHasEqualHeightAcrossTabsAtStandardViewport(t *testing.T) {
 
 	var lineCount int
 	for tab := AvailableTab; tab < tabCount; tab++ {
-		m.CurrentTab = tab
+		if m.CurrentTab != tab {
+			m = press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
+		}
 		got := len(strings.Split(m.View().Content, "\n"))
 		if tab == AvailableTab {
 			lineCount = got

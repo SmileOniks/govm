@@ -3,16 +3,16 @@
 # GoVM - Go Version Manager
 
 > [!NOTE]
-> **govm** is a fork of [govm](https://github.com/melkeydev/govm). by MelkeyDev.
-> As the original project appears to be inactive, I'm endeavoring to sustain its vitality by meticulously rectifying its flaws.
-
+> **govm** is a fork of [melkeydev/govm](https://github.com/melkeydev/govm) by MelkeyDev.
+> The original appears inactive, so I maintain this fork and fix its flaws.
 
 GoVM is a modern tool for managing multiple Go versions on your system. It features both a clean Terminal UI (TUI) and a command-line interface for easy installation and switching between Go versions.
 
 ## Features
 
 - Beautiful TUI built with [Charm Bubbletea v2](https://charm.land/bubbletea/v2) with a responsive layout that adapts to your terminal size (normal and wide breakpoints) and a minimum viewport of 64x20
-- Keyboard shortcut overlay (`?`) that lists every binding of the current context, including the ones the one-line hint bar has no room for
+- Full mouse control for tabs, row selection, scrolling, actions, settings, confirmations, and first-time setup; action buttons wrap instead of being truncated
+- Keyboard shortcut overlay (`?`) that lists every binding of the current context
 - Inline fuzzy filter on the Available tab (`f`): type to narrow the version list fzf-style; `enter` applies, `esc` clears
 - Version string shown in the TUI header and CLI help output
 - Upgrade notice in the TUI header (`↑ v0.2.5 available`) when a newer stable govm release is published on GitHub. The TUI makes one request to `api.github.com` per session; the check fails silently, never runs for dev builds, and can be switched off on the Settings tab
@@ -53,6 +53,8 @@ To launch the TUI
 ## First-Time Setup
 
 When you first run GoVM, it will guide you through adding the required directory to your PATH. This is a one-time setup that enables GoVM to manage your Go versions.
+
+The setup screen keeps an `[Enter continue]` button visible below the instructions. Scroll the instructions with the mouse wheel when they do not fit. Click Continue or press Enter/Space to proceed; this does not execute the shell commands shown in the instructions.
 
 ### On Linux/macOS
 
@@ -131,6 +133,21 @@ The TUI layout is responsive and adjusts to your terminal width:
 | `>= 130` | Wide | Larger padding, full borders |
 
 The TUI header shows the GoVM version so you always know which build is running.
+
+#### Mouse controls
+
+Use a terminal with mouse reporting support. All keyboard shortcuts remain available.
+
+- **Tabs and actions:** left-click a tab or a visible action button. Buttons retain their keyboard labels and wrap onto additional lines in narrow terminals.
+- **Version lists:** click a title, description, or table row to select it. Selection never installs, activates, or deletes a version; use the separate Install, Use, or Delete button. The wheel moves the selection one row at a time without wrapping.
+- **Dependencies:** click a row to select it; click its `○`/`●` marker to toggle its update selection. Updates, checks, and backups use their separate buttons.
+- **Find:** click Find, type the query with the keyboard, then click Apply or Clear. Rows cannot be selected while the query is being edited.
+- **Settings:** click a row label to select it, or its value to toggle/edit it. The backup limit also has `−`/`+` buttons. The wheel only moves the selected row; it does not change or save values. Enter numbers and URLs with the keyboard, then click Save or Cancel.
+- **Dialogs:** click the desired answer directly, regardless of which answer is highlighted. Dependency update level/scope selectors are clickable. In Restore, select or scroll to a backup first, then click Restore. Clicking outside a dialog does nothing.
+- **Help:** click Help to open it and Close Help to return to the prior context. Underlying rows and actions cannot be clicked through it.
+
+Only unmodified left clicks and vertical wheel events perform actions. Right/middle clicks, dragging, and release events do not trigger operations. Below 64×20 the main interface disables mouse actions until the window is enlarged.
+
 
 #### Navigation
 
@@ -387,7 +404,7 @@ GoVM downloads Go versions from the official go.dev website and installs them in
 - User settings (theme, deps display filter, and the dependency backup retention limit) are stored in `~/.govm/settings.json` (see [Settings](#settings))
 - Dependency update snapshots and restores live in `~/.govm/deps_backup`, organised by module path
 
-This ensures a seamless experience without needing to manually update environment variables or source scripts each time you switch versions.
+So you never need to manually update environment variables or source scripts when you switch versions.
 
 ### Install from source
 

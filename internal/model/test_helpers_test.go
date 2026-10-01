@@ -64,14 +64,6 @@ func selectedListVersion(m Model) string {
 	return selected.Name
 }
 
-func focusInstalled(m *Model) {
-	// The projection constructs the installed table focused. Keeping
-	// this helper documents that tests depend on that observable setup.
-	if !m.projection.installedModel().Focused() {
-		panic("installed projection is not focused")
-	}
-}
-
 func setInstalledCursor(m *Model, cursor int) {
 	for m.projection.installedModel().Cursor() < cursor {
 		m.projection.updateInstalled(tea.KeyPressMsg{Code: tea.KeyDown})

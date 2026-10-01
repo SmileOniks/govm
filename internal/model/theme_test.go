@@ -60,13 +60,11 @@ func TestApplyRuntimeThemeRebuildsDependencyDialogStyles(t *testing.T) {
 
 	m.settings.values.Theme = config.ThemeCurrent
 	m.applyRuntimeTheme()
-	currentDialog := depsDialog{kind: dialogChecks, choiceYes: true}.
-		render(m.theme, depsTab{}, viewportSize{Width: 64, Height: 20})
+	currentDialog := depsDialog{kind: dialogChecks, choiceYes: true}.render(m.theme, depsTab{}, viewportSize{Width: 64, Height: 20}).content
 
 	m.settings.values.Theme = config.ThemeLight
 	m.applyRuntimeTheme()
-	lightDialog := depsDialog{kind: dialogChecks, choiceYes: true}.
-		render(m.theme, depsTab{}, viewportSize{Width: 64, Height: 20})
+	lightDialog := depsDialog{kind: dialogChecks, choiceYes: true}.render(m.theme, depsTab{}, viewportSize{Width: 64, Height: 20}).content
 
 	if lightDialog == currentDialog {
 		t.Fatal("expected light theme to change dependency dialog output")

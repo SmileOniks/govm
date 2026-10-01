@@ -41,6 +41,32 @@ func (s *depsTab) handleDialogKey(msg tea.KeyPressMsg) (tea.Cmd, depsStatus) {
 	return nil, depsStatus{}
 }
 
+func (s *depsTab) selectDialogLevel(level deps.UpdateLevel) (tea.Cmd, depsStatus) {
+	if s.dialog.kind != dialogUpdate || s.dialog.level == level {
+		return nil, depsStatus{}
+	}
+	valid := false
+	for _, value := range deps.Levels {
+		if value == level {
+			valid = true
+			break
+		}
+	}
+	if !valid {
+		return nil, depsStatus{}
+	}
+	s.dialog.level = level
+	return s.applyDialogLevelChange()
+}
+
+func (s *depsTab) selectDialogScope(explicit bool) (tea.Cmd, depsStatus) {
+	if !s.dialog.canToggleScope() || s.dialog.explicit == explicit {
+		return nil, depsStatus{}
+	}
+	s.dialog.explicit = explicit
+	return s.applyDialogScopeChange()
+}
+
 // applyDialogLevelChange asks the Cycle to rebuild the plan at the
 // level the dialog now shows. The re-emitted IntentConfirmApply
 // replaces the dialog contents; the dialog stays open.

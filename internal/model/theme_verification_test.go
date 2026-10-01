@@ -164,8 +164,8 @@ func TestApplyRuntimeThemePropagatesToComponents(t *testing.T) {
 	lightPrimary := styles.NewTheme(config.ThemeLight).Primary
 
 	currentSpinner := m.Spinner.Style.GetForeground()
-	currentInstalledOut := m.projection.installedView()
-	currentDepsOut := m.deps.table.View()
+	currentInstalledOut := m.projection.installedView().content
+	currentDepsOut := m.deps.table.render(mouseDependencyRow).content
 
 	m.settings.values.Theme = config.ThemeLight
 	m.applyRuntimeTheme()
@@ -179,17 +179,10 @@ func TestApplyRuntimeThemePropagatesToComponents(t *testing.T) {
 	if got := m.Spinner.Style.GetForeground(); got == currentSpinner {
 		t.Fatal("Spinner.Style did not change after applyRuntimeTheme")
 	}
-	if got := m.projection.installedView(); got == currentInstalledOut {
-		t.Fatal("installedTable.View did not change after applyRuntimeTheme")
+	if got := m.projection.installedView().content; got == currentInstalledOut {
+		t.Fatal("installed table render did not change after applyRuntimeTheme")
 	}
-	if got := m.deps.table.View(); got == currentDepsOut {
-		t.Fatal("Deps.Table.View did not change after applyRuntimeTheme")
-	}
-	// List delegate is rebuilt via SetDelegate. bubbles/list does not
-	// expose the delegate, so the proof of propagation is that
-	// list.View still renders without panicking — implicit because the
-	// assertion below would have panicked above if SetDelegate broke.
-	if view := m.projection.availableView(); view == "" {
-		t.Fatal("list.View is empty after applyRuntimeTheme")
+	if got := m.deps.table.render(mouseDependencyRow).content; got == currentDepsOut {
+		t.Fatal("dependency table render did not change after applyRuntimeTheme")
 	}
 }

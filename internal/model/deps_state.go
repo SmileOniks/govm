@@ -3,7 +3,6 @@ package model
 import (
 	"errors"
 
-	"charm.land/bubbles/v2/table"
 	"github.com/smileoniks-ctrl/govm/internal/config"
 	"github.com/smileoniks-ctrl/govm/internal/deps"
 	"github.com/smileoniks-ctrl/govm/internal/styles"
@@ -32,7 +31,7 @@ const (
 // module; the Model and the tests reach it only through its methods.
 type depsTab struct {
 	moduleDir    string
-	table        table.Model
+	table        rowTable
 	dependencies []deps.ModuleDependency
 	loaded       bool
 	phase        depsPhase
@@ -91,12 +90,12 @@ func (unavailableDepsExecutor) Restore(string) (deps.DependencyRestoreResult, er
 // executor is bound yet: constructing the tab never touches the go
 // toolchain.
 func newDepsTab(moduleDir string, theme styles.Theme) depsTab {
-	tbl := table.New(
-		table.WithColumns(dependencyTableColumns(defaultConstructionWidth)),
-		table.WithFocused(true),
-		table.WithHeight(15),
+	tbl := newRowTable(
+		dependencyTableColumns(defaultConstructionWidth),
+		defaultConstructionWidth,
+		15,
+		tableStyles(theme),
 	)
-	tbl.SetStyles(tableStyles(theme))
 	return depsTab{
 		moduleDir: moduleDir,
 		table:     tbl,
@@ -106,9 +105,7 @@ func newDepsTab(moduleDir string, theme styles.Theme) depsTab {
 
 // resize fits the table to the content area the Model has laid out.
 func (s *depsTab) resize(width, height int) {
-	s.table.SetWidth(width)
-	s.table.SetHeight(height)
-	s.table.SetColumns(dependencyTableColumns(width))
+	s.table.Resize(width, height, dependencyTableColumns(width))
 }
 
 // applyTheme restyles the table after a runtime theme change.
@@ -116,7 +113,7 @@ func (s *depsTab) applyTheme(theme styles.Theme) {
 	s.table.SetStyles(tableStyles(theme))
 }
 
-// operationInProgress reports whether any dependency operation —
+// busy reports whether any dependency operation —
 // standalone or update-cycle — is in flight.
 func (s depsTab) busy() bool {
 	if s.phase != depsIdle {

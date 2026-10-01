@@ -1,6 +1,7 @@
 package model
 
 import (
+	"charm.land/bubbles/v2/cursor"
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
@@ -16,13 +17,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg.(type) {
+	case tea.MouseMsg:
+		return m, nil
+	case mouseActionMsg:
+		defer m.relayout()
+		return m.handleMouse(msg.(mouseActionMsg))
+	case spinner.TickMsg, cursor.BlinkMsg:
+	default:
+		m.mouseRevision++
+		defer m.relayout()
+	}
 	var cmds []tea.Cmd
 	// A focused Settings input receives cursor ticks here. Keys and
 	// source results take one route, so a source result's refilter
 	// command cannot be lost to a second, already-settled delivery.
 	if m.inputContext() == inputSettingsInput {
 		switch msg.(type) {
-		case tea.KeyPressMsg, distributionSourceValidatedMsg:
+		case tea.KeyPressMsg:
+			return m.dispatchKey(msg.(tea.KeyPressMsg))
+		case distributionSourceValidatedMsg:
 			return m.delegateSettings(msg)
 		}
 		cmd, status := m.settings.update(msg)
@@ -40,58 +54,14 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
-		// ? opens the Help overlay above every choice mode, so it is
-		// claimed before the context's own handler sees the key;
-		// canOpenHelp keeps it ordinary input in text-entry contexts.
-		if msg.String() == "?" && m.canOpenHelp() {
-			m.HelpVisible = true
-			return m, nil
-		}
-		// The Input context decides who handles the key; see
-		// input_context.go for the priority order.
-		switch m.inputContext() {
-		case inputSettingsInput:
-			return m.delegateSettings(msg)
-		case inputHelpOverlay:
-			return m.handleHelpOverlayKey(msg)
-		case inputDepsDialog:
-			// Quitting stays with the Model; every other key,
-			// including tab, belongs to the dialog.
-			switch msg.String() {
-			case "ctrl+c", "q":
-				return m, tea.Quit
-			}
-			return m.delegateDeps(msg)
-		case inputPruneConfirm:
-			switch msg.String() {
-			case "ctrl+c", "q":
-				return m, tea.Quit
-			}
-			return m.delegateInstalled(msg)
-		}
-		return m.handleKey(msg)
+		return m.dispatchKey(msg)
 
 	case tea.WindowSizeMsg:
+		m.mouseWindowKnown = true
 		m.TermWidth = msg.Width
 		m.TermHeight = msg.Height
 		m.Layout = styles.GetLayoutMode(msg.Width)
 
-		frameH, frameV := styles.FrameOverhead(m.Layout)
-		contentWidth := msg.Width - frameH
-		if contentWidth < 1 {
-			contentWidth = 1
-		}
-
-		const fixedUIElements = 6
-		contentHeight := msg.Height - frameV - fixedUIElements
-		if contentHeight < 1 {
-			contentHeight = 1
-		}
-
-		m.Width = contentWidth
-		m.Height = contentHeight
-		m.projection.resize(contentWidth, contentHeight)
-		m.deps.resize(contentWidth, contentHeight)
 		return m, nil
 
 	case catalogLoadedMsg:
@@ -134,4 +104,30 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.applyDepsStatus(depsStatus)
 	cmds = append(cmds, depsCmd)
 	return m, tea.Batch(cmds...)
+}
+
+func (m *Model) dispatchKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	if msg.String() == "?" && m.canOpenHelp() {
+		m.HelpVisible = true
+		return m, nil
+	}
+	switch m.inputContext() {
+	case inputSettingsInput:
+		return m.delegateSettings(msg)
+	case inputHelpOverlay:
+		return m.handleHelpOverlayKey(msg)
+	case inputDepsDialog:
+		switch msg.String() {
+		case "ctrl+c", "q":
+			return m, tea.Quit
+		}
+		return m.delegateDeps(msg)
+	case inputPruneConfirm:
+		switch msg.String() {
+		case "ctrl+c", "q":
+			return m, tea.Quit
+		}
+		return m.delegateInstalled(msg)
+	}
+	return m.handleKey(msg)
 }

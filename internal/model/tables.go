@@ -30,12 +30,6 @@ func (s *depsTab) updateDependencyTable() {
 		paths = append(paths, d.Path)
 	}
 	s.table.SetRows(rows)
-	// The table parks its cursor at -1 once it has been given no
-	// rows and never brings it back on its own; a listed table always
-	// has the cursor on a row.
-	if s.table.Cursor() < 0 && len(rows) > 0 {
-		s.table.SetCursor(0)
-	}
 	s.rowPaths = paths
 }
 

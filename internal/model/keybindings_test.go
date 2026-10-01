@@ -5,32 +5,6 @@ import (
 	"testing"
 )
 
-// TestRegistryTabSectionsAreNonEmpty guards the basics of every tab
-// section: each of the four tabs documents at least one short hint
-// for the bar and at least one overlay-only binding.
-func TestRegistryTabSectionsAreNonEmpty(t *testing.T) {
-	for tab := 0; tab < tabCount; tab++ {
-		section := tabKeyBindings(tab)
-		if section.title == "" || len(section.bindings) == 0 {
-			t.Fatalf("tab %d: expected titled non-empty section, got %+v", tab, section)
-		}
-		shorts, full := 0, 0
-		for _, binding := range section.bindings {
-			if binding.short {
-				shorts++
-			} else {
-				full++
-			}
-		}
-		if shorts == 0 {
-			t.Errorf("tab %d (%s): no short bindings for the hint bar", tab, section.title)
-		}
-		if full == 0 {
-			t.Errorf("tab %d (%s): no overlay-only bindings; the overlay must show more than the bar", tab, section.title)
-		}
-	}
-}
-
 // TestRegistryGlobalBindsHelpOnEveryContext asserts the discoverability
 // contract: the "?" hint appears in every context where the overlay
 // can open — all tabs, all dialogs, and the confirmations.
@@ -109,31 +83,6 @@ func TestRegistryEditingSectionsHaveNoGlobalKeys(t *testing.T) {
 					t.Errorf("editing section (%v) must not document %q: the overlay cannot open while an input has focus", editingSource, forbidden)
 				}
 			}
-		}
-	}
-}
-
-// TestShortHintsFlattensInOrder checks that only short-flagged
-// bindings reach the bar, in section order.
-func TestShortHintsFlattensInOrder(t *testing.T) {
-	sections := []helpSection{
-		{title: "One", bindings: []keyBinding{
-			{keys: "a", desc: "first", short: true},
-			{keys: "b", desc: "hidden"},
-		}},
-		{title: "Two", bindings: []keyBinding{
-			{keys: "c", desc: "second", short: true},
-		}},
-	}
-
-	got := shortHints(sections)
-	want := [][2]string{{"a", "first"}, {"c", "second"}}
-	if len(got) != len(want) {
-		t.Fatalf("shortHints length = %d, want %d (%v)", len(got), len(want), got)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Errorf("shortHints[%d] = %v, want %v", i, got[i], want[i])
 		}
 	}
 }

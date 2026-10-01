@@ -2,7 +2,6 @@ package model
 
 import (
 	"context"
-	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -144,27 +143,4 @@ func TestInputContextTextEntry(t *testing.T) {
 			t.Fatalf("%s must not be a text-entry context", ctx)
 		}
 	}
-}
-
-func TestHintBarFollowsInputContext(t *testing.T) {
-	m := newTestModel(t)
-	m.CurrentTab = InstalledTab
-	confirmPrune(t, &m)
-	bar := stripANSI(renderHelpBar(testTheme(), m, 120))
-	if want := "confirm"; !containsHint(bar, want) {
-		t.Fatalf("prune confirmation hint bar missing %q: %s", want, bar)
-	}
-
-	m.HelpVisible = true
-	bar = stripANSI(renderHelpBar(testTheme(), m, 120))
-	if want := "close help"; !containsHint(bar, want) {
-		t.Fatalf("help overlay hint bar missing %q: %s", want, bar)
-	}
-	if sections := helpOverlaySections(m); sections[0].title != "Confirm prune" {
-		t.Fatalf("overlay above prune confirmation shows %q, want Confirm prune", sections[0].title)
-	}
-}
-
-func containsHint(bar, want string) bool {
-	return strings.Contains(bar, want)
 }

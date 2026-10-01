@@ -237,8 +237,13 @@ func (s *installedTab) summaryView() string {
 	return line
 }
 
-func (s *installedTab) dialogView(t styles.Theme, viewport viewportSize) string {
+func (s *installedTab) dialogView(t styles.Theme, viewport viewportSize) renderedSurface {
 	result := s.plan
+	footer := joinSurfaces(
+		renderedSurface{content: " "},
+		renderYesNoButtons(t, s.choiceYes, "Yes", "No"),
+		renderDialogControls(t, dialogWidth(viewport)-6),
+	)
 	lines := []string{
 		t.DialogTitleStyle.Render(t.DialogWarningStyle.Render("⚠ Prune inactive Go versions?")),
 		"",
@@ -248,9 +253,11 @@ func (s *installedTab) dialogView(t styles.Theme, viewport viewportSize) string 
 	}
 	visible := result.Candidates
 	extra := 0
-	if len(visible) > maxDependencyListLines {
-		extra = len(visible) - maxDependencyListLines
-		visible = visible[:maxDependencyListLines]
+	limit := min(maxDependencyListLines, max(0, dialogBodyHeight(t, viewport, footer)-len(lines)))
+	if len(visible) > limit {
+		limit = min(maxDependencyListLines, max(0, dialogBodyHeight(t, viewport, footer)-len(lines)-1))
+		extra = len(visible) - limit
+		visible = visible[:limit]
 	}
 	for _, candidate := range visible {
 		label := candidate.Version
@@ -262,8 +269,7 @@ func (s *installedTab) dialogView(t styles.Theme, viewport viewportSize) string 
 	if extra > 0 {
 		lines = append(lines, t.DialogBodyStyle.Render(fmt.Sprintf("  …and %d more", extra)))
 	}
-	lines = append(lines, "", renderYesNoButtons(t, s.choiceYes, "Yes", "No"))
-	return renderDialog(t, lipgloss.JoinVertical(lipgloss.Left, lines...), false, viewport)
+	return renderDialog(t, joinSurfaces(renderedSurface{content: lipgloss.JoinVertical(lipgloss.Left, lines...)}, footer), false, viewport)
 }
 
 func pruneResultBytes(result prune.Result) int64 {

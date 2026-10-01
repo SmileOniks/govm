@@ -1,22 +1,39 @@
 package model
 
-// This file is the single keybinding registry (see docs/adr/0001):
-// every key hint the TUI shows — the one-line hint bar at the bottom
-// of the screen and the Help overlay opened with "?" — renders from
-// the sections defined here. Adding or changing a binding means
-// changing this file and nothing else.
+import tea "charm.land/bubbletea/v2"
+
+type mouseControl struct {
+	label string
+	key   tea.KeyPressMsg
+}
+
+func mouseControls(label string, key tea.KeyPressMsg) [2]mouseControl {
+	return [2]mouseControl{{label: label, key: key}}
+}
+
+func directionalControls(previous, next rune, vertical bool) [2]mouseControl {
+	left, right := "← previous", "→ next"
+	if vertical {
+		left, right = "↑ previous", "↓ next"
+	}
+	return [2]mouseControl{
+		{label: left, key: tea.KeyPressMsg{Code: previous}},
+		{label: right, key: tea.KeyPressMsg{Code: next}},
+	}
+}
+
+// This registry drives the wrapped action bar and the Help overlay.
+// Mouse controls carry canonical keys rather than parsing displayed hints.
 //
 // The registry lists only bindings the key-dispatch code actually
 // accepts: handleKey, handleDialogKey, handleSettingsKey, or
 // depsDialog.Handle must recognise every documented key.
 
-// keyBinding is one entry in the keybinding registry: the keys as
-// displayed to the user, what they do, and whether the entry also
-// appears in the one-line hint bar.
+// keyBinding documents a keyboard command and its optional visible controls.
 type keyBinding struct {
-	keys  string
-	desc  string
-	short bool
+	keys          string
+	desc          string
+	mouseControls [2]mouseControl
 }
 
 // helpSection is a titled group of bindings. Tab sections, dialog
@@ -28,20 +45,16 @@ type helpSection struct {
 	bindings []keyBinding
 }
 
-// globalKeyBindings lists the keys that work on every tab. They are
-// appended to every tab's Help overlay and (when short) to every
-// tab's hint bar. Tab is overlay-only: with the Available filter key
-// in the bar, showing "tab next tab" too would push the quit hint out
-// of an 80-column terminal, and Tab navigation is standard TUI
-// convention the overlay still documents.
+// globalKeyBindings lists commands available on every tab. Tab switching is
+// documented in Help; the tab labels themselves provide mouse navigation.
 func globalKeyBindings() helpSection {
 	return helpSection{
 		title: "Global",
 		bindings: []keyBinding{
 			{keys: "tab", desc: "next tab"},
 			{keys: "shift+tab", desc: "previous tab"},
-			{keys: "?", desc: "help", short: true},
-			{keys: "q / ctrl+c", desc: "quit", short: true},
+			{keys: "?", desc: "help", mouseControls: mouseControls("? help", tea.KeyPressMsg{Code: '?'})},
+			{keys: "q / ctrl+c", desc: "quit", mouseControls: mouseControls("q / ctrl+c quit", tea.KeyPressMsg{Code: 'q'})},
 		},
 	}
 }
@@ -54,8 +67,8 @@ func dialogGlobalKeyBindings() helpSection {
 	return helpSection{
 		title: "Global",
 		bindings: []keyBinding{
-			{keys: "?", desc: "help", short: true},
-			{keys: "q / ctrl+c", desc: "quit", short: true},
+			{keys: "?", desc: "help", mouseControls: mouseControls("? help", tea.KeyPressMsg{Code: '?'})},
+			{keys: "q / ctrl+c", desc: "quit", mouseControls: mouseControls("q / ctrl+c quit", tea.KeyPressMsg{Code: 'q'})},
 		},
 	}
 }
@@ -70,11 +83,11 @@ func tabKeyBindings(tab int) helpSection {
 		return helpSection{
 			title: "Available",
 			bindings: []keyBinding{
-				{keys: "i", desc: "install", short: true},
-				{keys: "u", desc: "use", short: true},
-				{keys: "d", desc: "delete", short: true},
-				{keys: "r", desc: "refresh", short: true},
-				{keys: "f", desc: "find", short: true},
+				{keys: "i", desc: "install", mouseControls: mouseControls("i install", tea.KeyPressMsg{Code: 'i'})},
+				{keys: "u", desc: "use", mouseControls: mouseControls("u use", tea.KeyPressMsg{Code: 'u'})},
+				{keys: "d", desc: "delete", mouseControls: mouseControls("d delete", tea.KeyPressMsg{Code: 'd'})},
+				{keys: "r", desc: "refresh", mouseControls: mouseControls("r refresh", tea.KeyPressMsg{Code: 'r'})},
+				{keys: "f", desc: "find", mouseControls: mouseControls("f find", tea.KeyPressMsg{Code: 'f'})},
 				move,
 			},
 		}
@@ -82,9 +95,10 @@ func tabKeyBindings(tab int) helpSection {
 		return helpSection{
 			title: "Installed",
 			bindings: []keyBinding{
-				{keys: "u", desc: "use", short: true},
-				{keys: "d", desc: "delete", short: true},
-				{keys: "p", desc: "prune", short: true},
+				{keys: "u", desc: "use", mouseControls: mouseControls("u use", tea.KeyPressMsg{Code: 'u'})},
+				{keys: "d", desc: "delete", mouseControls: mouseControls("d delete", tea.KeyPressMsg{Code: 'd'})},
+				{keys: "p", desc: "prune", mouseControls: mouseControls("p prune", tea.KeyPressMsg{Code: 'p'})},
+				{keys: "r", desc: "refresh", mouseControls: mouseControls("r refresh", tea.KeyPressMsg{Code: 'r'})},
 				move,
 			},
 		}
@@ -92,11 +106,11 @@ func tabKeyBindings(tab int) helpSection {
 		return helpSection{
 			title: "Deps",
 			bindings: []keyBinding{
-				{keys: "r", desc: "check updates", short: true},
-				{keys: "space", desc: "mark", short: true},
-				{keys: "a", desc: "mark all / none", short: true},
-				{keys: "u", desc: "update", short: true},
-				{keys: "b", desc: "backups", short: true},
+				{keys: "r", desc: "check updates", mouseControls: mouseControls("r check updates", tea.KeyPressMsg{Code: 'r'})},
+				{keys: "space", desc: "mark", mouseControls: mouseControls("space mark", tea.KeyPressMsg{Code: tea.KeySpace})},
+				{keys: "a", desc: "mark all / none", mouseControls: mouseControls("a mark all / none", tea.KeyPressMsg{Code: 'a'})},
+				{keys: "u", desc: "update", mouseControls: mouseControls("u update", tea.KeyPressMsg{Code: 'u'})},
+				{keys: "b", desc: "backups", mouseControls: mouseControls("b backups", tea.KeyPressMsg{Code: 'b'})},
 				move,
 			},
 		}
@@ -104,9 +118,9 @@ func tabKeyBindings(tab int) helpSection {
 		return helpSection{
 			title: "Settings",
 			bindings: []keyBinding{
-				{keys: "↑/↓ k/j", desc: "move", short: true},
-				{keys: "enter / space", desc: "toggle or edit", short: true},
-				{keys: "←/→ h/l", desc: "toggle or adjust"},
+				{keys: "↑/↓ k/j", desc: "move", mouseControls: directionalControls(tea.KeyUp, tea.KeyDown, true)},
+				{keys: "enter / space", desc: "toggle or edit", mouseControls: mouseControls("enter / space toggle or edit", tea.KeyPressMsg{Code: tea.KeyEnter})},
+				{keys: "←/→ h/l", desc: "toggle or adjust", mouseControls: directionalControls(tea.KeyLeft, tea.KeyRight, false)},
 			},
 		}
 	}
@@ -125,9 +139,9 @@ func dialogKeyBindings(dialog depsDialog) helpSection {
 	switch dialog.kind {
 	case dialogUpdate:
 		title = "Update dependencies"
-		bindings = append(bindings, keyBinding{keys: "↑/↓ k/j", desc: "level", short: true})
+		bindings = append(bindings, keyBinding{keys: "↑/↓ k/j", desc: "level"})
 		if dialog.canToggleScope() {
-			bindings = append(bindings, keyBinding{keys: "space", desc: "scope", short: true})
+			bindings = append(bindings, keyBinding{keys: "space", desc: "scope"})
 		}
 	case dialogChecks:
 		title = "Run checks"
@@ -141,14 +155,14 @@ func dialogKeyBindings(dialog depsDialog) helpSection {
 		if dialog.choiceYes {
 			enterDesc = "restore"
 		}
-		bindings = append(bindings, keyBinding{keys: "↑/↓ k/j", desc: "select backup", short: true})
+		bindings = append(bindings, keyBinding{keys: "↑/↓ k/j", desc: "select backup"})
 	}
 
 	bindings = append(bindings,
-		keyBinding{keys: "←/→ h/l", desc: "choose", short: true},
-		keyBinding{keys: "enter", desc: enterDesc, short: true},
+		keyBinding{keys: "←/→ h/l", desc: "choose"},
+		keyBinding{keys: "enter", desc: enterDesc},
 		keyBinding{keys: "y", desc: "accept"},
-		keyBinding{keys: "n / esc", desc: escDesc, short: true},
+		keyBinding{keys: "n / esc", desc: escDesc},
 	)
 	return helpSection{title: title, bindings: bindings}
 }
@@ -159,8 +173,8 @@ func confirmDeleteKeyBindings() helpSection {
 	return helpSection{
 		title: "Confirm delete",
 		bindings: []keyBinding{
-			{keys: "y", desc: "confirm", short: true},
-			{keys: "n", desc: "cancel", short: true},
+			{keys: "y", desc: "confirm", mouseControls: mouseControls("y confirm", tea.KeyPressMsg{Code: 'y'})},
+			{keys: "n", desc: "cancel", mouseControls: mouseControls("n cancel", tea.KeyPressMsg{Code: 'n'})},
 		},
 	}
 }
@@ -171,10 +185,10 @@ func confirmPruneKeyBindings() helpSection {
 	return helpSection{
 		title: "Confirm prune",
 		bindings: []keyBinding{
-			{keys: "←/→ h/l", desc: "choose", short: true},
-			{keys: "enter", desc: "confirm", short: true},
+			{keys: "←/→ h/l", desc: "choose"},
+			{keys: "enter", desc: "confirm"},
 			{keys: "y", desc: "accept"},
-			{keys: "n / esc", desc: "cancel", short: true},
+			{keys: "n / esc", desc: "cancel"},
 		},
 	}
 }
@@ -188,17 +202,17 @@ func editingKeyBindings(editingSource bool) helpSection {
 		return helpSection{
 			title: "Edit distribution source",
 			bindings: []keyBinding{
-				{keys: "enter", desc: "check and save", short: true},
-				{keys: "r", desc: "reset", short: true},
-				{keys: "esc", desc: "cancel", short: true},
+				{keys: "enter", desc: "check and save", mouseControls: mouseControls("enter check and save", tea.KeyPressMsg{Code: tea.KeyEnter})},
+				{keys: "r", desc: "reset", mouseControls: mouseControls("r reset to official", tea.KeyPressMsg{Code: 'r'})},
+				{keys: "esc", desc: "cancel", mouseControls: mouseControls("esc cancel", tea.KeyPressMsg{Code: tea.KeyEscape})},
 			},
 		}
 	}
 	return helpSection{
 		title: "Edit backup limit",
 		bindings: []keyBinding{
-			{keys: "enter", desc: "save", short: true},
-			{keys: "esc", desc: "cancel", short: true},
+			{keys: "enter", desc: "save", mouseControls: mouseControls("enter save", tea.KeyPressMsg{Code: tea.KeyEnter})},
+			{keys: "esc", desc: "cancel", mouseControls: mouseControls("esc cancel", tea.KeyPressMsg{Code: tea.KeyEscape})},
 		},
 	}
 }
@@ -212,10 +226,10 @@ func filterInputKeyBindings() helpSection {
 	return helpSection{
 		title: "Find input",
 		bindings: []keyBinding{
-			{keys: "enter", desc: "apply", short: true},
-			{keys: "esc", desc: "clear", short: true},
-			{keys: "tab", desc: "next tab", short: true},
-			{keys: "ctrl+c", desc: "quit", short: true},
+			{keys: "enter", desc: "apply", mouseControls: mouseControls("enter apply", tea.KeyPressMsg{Code: tea.KeyEnter})},
+			{keys: "esc", desc: "clear", mouseControls: mouseControls("esc clear", tea.KeyPressMsg{Code: tea.KeyEscape})},
+			{keys: "tab", desc: "next tab", mouseControls: mouseControls("tab next tab", tea.KeyPressMsg{Code: tea.KeyTab})},
+			{keys: "ctrl+c", desc: "quit", mouseControls: mouseControls("ctrl+c quit", tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})},
 		},
 	}
 }
@@ -227,22 +241,8 @@ func helpOverlayBarBindings() helpSection {
 	return helpSection{
 		title: "Help overlay",
 		bindings: []keyBinding{
-			{keys: "? / esc", desc: "close help", short: true},
-			{keys: "ctrl+c", desc: "quit", short: true},
+			{keys: "? / esc", desc: "close help", mouseControls: mouseControls("esc close help", tea.KeyPressMsg{Code: tea.KeyEscape})},
+			{keys: "ctrl+c", desc: "quit", mouseControls: mouseControls("ctrl+c quit", tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})},
 		},
 	}
-}
-
-// shortHints flattens the short-flagged bindings of the sections into
-// the key/description pairs the hint bar renders.
-func shortHints(sections []helpSection) [][2]string {
-	var hints [][2]string
-	for _, section := range sections {
-		for _, binding := range section.bindings {
-			if binding.short {
-				hints = append(hints, [2]string{binding.keys, binding.desc})
-			}
-		}
-	}
-	return hints
 }

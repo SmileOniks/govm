@@ -6,16 +6,26 @@ import (
 	"runtime"
 	"strings"
 
+	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/smileoniks-ctrl/govm/internal/paths"
 )
 
 type Model struct {
-	width     int
-	height    int
-	shimPath  string
-	keyPrompt string
+	width        int
+	height       int
+	shimPath     string
+	instructions viewport.Model
+	footer       string
+	footerWidth  int
+}
+
+type continueMsg struct{}
+
+type scrollMsg struct {
+	delta int
 }
 
 type shimDirResolver interface {
@@ -32,12 +42,20 @@ func newWithResolver(resolver shimDirResolver) (Model, error) {
 		return Model{}, err
 	}
 
-	return Model{
-		shimPath:  shimPath,
-		keyPrompt: "Press Enter to continue...",
-		width:     80,
-		height:    24,
-	}, nil
+	m := Model{
+		shimPath: shimPath,
+		width:    80,
+		height:   24,
+		instructions: viewport.New(
+			viewport.WithWidth(80),
+			viewport.WithHeight(22),
+		),
+	}
+	m.instructions.FillHeight = true
+	m.instructions.SoftWrap = true
+	m.instructions.MouseWheelEnabled = false
+	m.rebuildViewport()
+	return m, nil
 }
 
 func (m Model) Init() tea.Cmd {
@@ -46,6 +64,17 @@ func (m Model) Init() tea.Cmd {
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.MouseMsg:
+		// Only semantic messages from the displayed frame may act on setup.
+		return m, nil
+	case continueMsg:
+		return m, tea.Quit
+	case scrollMsg:
+		if msg.delta < 0 {
+			m.instructions.ScrollUp(1)
+		} else {
+			m.instructions.ScrollDown(1)
+		}
 	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "enter", "space":
@@ -54,17 +83,91 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		if m.width != msg.Width || m.height != msg.Height {
+			m.width = max(0, msg.Width)
+			m.height = max(0, msg.Height)
+			m.rebuildViewport()
+		}
 	}
 	return m, nil
 }
 
 func (m Model) View() tea.View {
+	v := tea.NewView("")
+	v.AltScreen = true
+	if m.width <= 0 || m.height <= 0 {
+		return v
+	}
+
+	instructionsHeight := m.instructions.Height()
+	content := m.footer
+	if instructionsHeight > 0 {
+		content = m.instructions.View() + "\n" + content
+	}
+	v.Content = content
+	v.MouseMode = tea.MouseModeCellMotion
+
+	// Capture only immutable coordinates from this displayed frame.
+	width := m.width
+	footerX := (width - m.footerWidth) / 2
+	footerY := m.height - 1
+	footerWidth := m.footerWidth
+	v.OnMouse = func(msg tea.MouseMsg) tea.Cmd {
+		mouse := msg.Mouse()
+		if mouse.Mod != 0 || mouse.X < 0 || mouse.X >= width {
+			return nil
+		}
+		switch msg := msg.(type) {
+		case tea.MouseClickMsg:
+			onFooter := mouse.Y == footerY && mouse.X >= footerX && mouse.X < footerX+footerWidth
+			if msg.Button == tea.MouseLeft && onFooter {
+				return func() tea.Msg { return continueMsg{} }
+			}
+		case tea.MouseWheelMsg:
+			if mouse.Y < 0 || mouse.Y >= instructionsHeight {
+				return nil
+			}
+			switch msg.Button {
+			case tea.MouseWheelUp:
+				return func() tea.Msg { return scrollMsg{delta: -1} }
+			case tea.MouseWheelDown:
+				return func() tea.Msg { return scrollMsg{delta: 1} }
+			}
+		}
+		return nil
+	}
+	return v
+}
+
+func (m *Model) rebuildViewport() {
+	m.instructions.SetWidth(m.width)
+	if m.width <= 0 || m.height <= 0 {
+		m.instructions.SetHeight(0)
+		m.footer = ""
+		m.footerWidth = 0
+		return
+	}
+
+	button := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#626262")).
+		Render(ansi.Truncate("[Enter continue]", m.width, ""))
+	m.footerWidth = ansi.StringWidth(button)
+	m.footer = lipgloss.PlaceHorizontal(m.width, lipgloss.Center, button)
+	if m.height > 1 {
+		m.footer = strings.Repeat(" ", m.width) + "\n" + m.footer
+	}
+	footerHeight := lipgloss.Height(m.footer)
+	m.instructions.SetHeight(max(0, m.height-footerHeight))
+	m.instructions.SetContent(m.renderInstructions())
+	m.instructions.SetYOffset(m.instructions.YOffset())
+}
+
+func (m Model) renderInstructions() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#3c71a8")).
 		MarginBottom(1).
+		Width(min(m.width, lipgloss.Width("GoVM First-Time Setup"))).
 		Border(lipgloss.NormalBorder(), false, false, true, false).
 		BorderForeground(lipgloss.Color("#3c71a8")).
 		PaddingBottom(1)
@@ -73,15 +176,11 @@ func (m Model) View() tea.View {
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#3c71a8")).
 		Padding(1, 2).
-		Width(min(m.width-4, 80))
+		Width(max(1, min(m.width-4, 80)))
 
 	highlightStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#3c71a8")).
 		Bold(true)
-
-	footerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#626262")).
-		MarginTop(1)
 
 	title := titleStyle.Render("GoVM First-Time Setup")
 
@@ -128,16 +227,13 @@ After adding to PATH, restart your terminal or run:
 	}
 
 	box := boxStyle.Render(setupInstructions)
-	footer := footerStyle.Render(m.keyPrompt)
 
-	paddingTop := max(0, (m.height-lipgloss.Height(title)-lipgloss.Height(box)-lipgloss.Height(footer)-4)/2)
-	padTopStr := strings.Repeat("\n", paddingTop)
-
-	return tea.NewView(padTopStr + lipgloss.JoinVertical(lipgloss.Center,
-		title,
-		box,
-		footer,
-	))
+	paddingTop := max(0, (m.instructions.Height()-lipgloss.Height(title)-lipgloss.Height(box))/2)
+	return strings.Repeat("\n", paddingTop) + lipgloss.PlaceHorizontal(
+		m.width,
+		lipgloss.Center,
+		lipgloss.JoinVertical(lipgloss.Center, title, box),
+	)
 }
 
 func min(a, b int) int {

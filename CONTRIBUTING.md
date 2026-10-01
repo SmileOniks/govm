@@ -34,6 +34,25 @@ Installed invalidates an unconfirmed preview, while a confirmed run survives and
 accepts completion exactly once, even on another tab or under Help. Test through
 keys and emitted command results, not the module's private state.
 
+Mouse input uses Bubble Tea's last-rendered `View.OnMouse` surface. Build cell
+rectangles alongside the rendered fragments, clip them with the same viewport,
+and dispatch semantic actions through the existing key and operation handlers.
+Do not pass raw mouse events into the list, table, or text inputs a second time.
+Clicks carry an interactive revision and full row identities; wheel bursts
+retain their context without requiring a matching revision. Installed and Deps
+use `rowTable`, which owns the visible window as well as the cursor.
+Bubble Tea 2.0.10 skips `OnMouse` updates when the visible view fields compare
+equal. `mouseFrameContent` therefore carries the full revision in a zero-cell
+OSC 8 close marker; removing it freezes clicks after visually unchanged updates.
+
+Mouse regressions should locate coordinates in the visible rendered text, not
+read the hit targets they are testing. Cover selection separately from execution,
+modal isolation, delayed clicks, wheel bursts, filtering, and 64×20 layouts.
+Run `go test ./internal/model ./internal/setup -run 'Test(Mouse|RowTable|SetupMouse)'`
+and `go test -race ./internal/model ./internal/setup`, then exercise SGR mouse
+events in a real PTY with an isolated HOME and a temporary module. Direct model
+tests alone do not exercise the renderer's last-frame callback lifecycle.
+
 ## Report an Issue
 
 If you have run into a bug or want to discuss a new feature, please [file an issue](https://github.com/smileoniks-ctrl/govm/issues).

@@ -145,37 +145,47 @@ func yesNoKeyAction(key string, choiceYes bool) (bool, dialogAction) {
 	return choiceYes, dialogNoop
 }
 
-// Render composes the dialog's body (kind-specific), the shared Yes/No
-// buttons, and the outer renderDialog wrapper. The theme is taken as a
-// parameter so depsDialog has no hidden dependency on package-level
-// style state. Callers only need to overlay the returned string onto
-// the active view.
-func (d depsDialog) render(t styles.Theme, tab depsTab, viewport viewportSize) string {
-	lines := d.bodyLines(t, tab)
-	lines = append(lines, "")
-	lines = append(lines, d.renderButtons(t))
-	return renderDialog(t, lipgloss.JoinVertical(lipgloss.Left, lines...), d.errorStyle(), viewport)
-}
-
-func (d depsDialog) renderButtons(t styles.Theme) string {
-	yesLabel, noLabel := buttonLabels(d.kind)
-	return renderYesNoButtons(t, d.choiceYes, yesLabel, noLabel)
+func (d depsDialog) render(t styles.Theme, tab depsTab, viewport viewportSize) renderedSurface {
+	yes, no := buttonLabels(d.kind)
+	footer := joinSurfaces(
+		renderedSurface{content: " "},
+		renderYesNoButtons(t, d.choiceYes, yes, no),
+		renderDialogControls(t, dialogWidth(viewport)-6),
+	)
+	budget := dialogBodyHeight(t, viewport, footer)
+	var body renderedSurface
+	switch d.kind {
+	case dialogUpdate:
+		body = d.updateSurface(t, tab, budget)
+	case dialogChecks:
+		body.content = strings.Join(checksDialogLines(t), "\n")
+	case dialogRollback:
+		body.content = strings.Join(rollbackDialogLines(t, d.checkResult, d.inconclusive, max(0, budget-6)), "\n")
+	case dialogRestore:
+		body = restoreDialogSurface(t, tab.backups, d.cursor, budget)
+	}
+	return renderDialog(t, joinSurfaces(body, footer), d.errorStyle(), viewport)
 }
 
 // renderYesNoButtons draws the shared button row of a Yes/No dialog
 // with the chosen button highlighted.
-func renderYesNoButtons(t styles.Theme, choiceYes bool, yesLabel, noLabel string) string {
-	yesBtn, noBtn := t.DialogInactiveStyle, t.DialogInactiveStyle
+func renderYesNoButtons(t styles.Theme, choiceYes bool, yesLabel, noLabel string) renderedSurface {
+	yesStyle, noStyle := t.DialogInactiveStyle, t.DialogInactiveStyle
 	if choiceYes {
-		yesBtn = t.DialogActiveStyle
+		yesStyle = t.DialogActiveStyle
 	} else {
-		noBtn = t.DialogActiveStyle
+		noStyle = t.DialogActiveStyle
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Center,
-		yesBtn.Render(yesLabel),
-		"  ",
-		noBtn.Render(noLabel),
-	)
+	yes, no := yesStyle.Render(yesLabel), noStyle.Render(noLabel)
+	return renderedSurface{
+		content: lipgloss.JoinHorizontal(lipgloss.Center, yes, "  ", no),
+		targets: []mouseTarget{
+			{rect: cellRect{width: lipgloss.Width(yes), height: lipgloss.Height(yes)},
+				action: mouseAction{kind: mouseKey, key: tea.KeyPressMsg{Code: 'y'}}},
+			{rect: cellRect{x: lipgloss.Width(yes) + 2, width: lipgloss.Width(no), height: lipgloss.Height(no)},
+				action: mouseAction{kind: mouseKey, key: tea.KeyPressMsg{Code: 'n'}}},
+		},
+	}
 }
 
 func (d depsDialog) errorStyle() bool {
@@ -193,20 +203,6 @@ func buttonLabels(kind depsDialogKind) (yes, no string) {
 	}
 }
 
-func (d depsDialog) bodyLines(t styles.Theme, tab depsTab) []string {
-	switch d.kind {
-	case dialogUpdate:
-		return updateDialogLines(t, d.updateEntries, d.level, d.explicit, explicitScopeLabel(tab, d.explicitModules))
-	case dialogChecks:
-		return checksDialogLines(t)
-	case dialogRollback:
-		return rollbackDialogLines(t, d.checkResult, d.inconclusive)
-	case dialogRestore:
-		return restoreDialogLines(t, tab.backups, d.cursor)
-	}
-	return nil
-}
-
 // adjacentLevel returns the level step positions away from level in
 // deps.Levels order, wrapping at both ends.
 func adjacentLevel(level deps.UpdateLevel, step int) deps.UpdateLevel {
@@ -219,93 +215,101 @@ func adjacentLevel(level deps.UpdateLevel, step int) deps.UpdateLevel {
 	return deps.Levels[0]
 }
 
-func updateDialogLines(t styles.Theme, updatable []deps.DependencyUpdateEntry, level deps.UpdateLevel, explicit bool, explicitLabel string) []string {
-	lines := make([]string, 0, 9+len(updatable))
-	lines = append(lines, t.DialogTitleStyle.Render(t.DialogWarningStyle.Render("⚠ Warning")))
-	lines = append(lines, "")
-	lines = append(lines, levelSelectorLine(t, level))
-	lines = append(lines, scopeSelectorLine(t, explicit, explicitLabel))
-	lines = append(lines, "")
-	if len(updatable) == 0 {
-		lines = append(lines, t.DialogBodyStyle.Render(fmt.Sprintf(
-			"No updates available at the %s level.", level,
-		)))
-		lines = append(lines, "")
+func (d depsDialog) updateSurface(t styles.Theme, tab depsTab, budget int) renderedSurface {
+	top := joinSurfaces(
+		renderedSurface{content: t.DialogTitleStyle.Render(t.DialogWarningStyle.Render("⚠ Warning")) + "\n "},
+		levelSelectorLine(t, d.level),
+		scopeSelectorLine(t, d.explicit, explicitScopeLabel(tab, d.explicitModules)),
+		renderedSurface{content: " "},
+	)
+	if len(d.updateEntries) == 0 {
 		hint := "↑/↓ change level · Yes ends without changes"
-		if explicitLabel != "" {
+		if d.canToggleScope() {
 			hint = "↑/↓ change level · space change scope · Yes ends without changes"
 		}
-		lines = append(lines, t.DialogMutedStyle.Render(hint))
-		return lines
+		return joinSurfaces(top, renderedSurface{content: t.DialogBodyStyle.Render(fmt.Sprintf("No updates available at the %s level.", d.level)) +
+			"\n \n" + t.DialogMutedStyle.Render(hint),
+		})
 	}
 	kind := "direct "
-	if explicit {
+	if d.explicit {
 		kind = ""
 	}
-	lines = append(lines, t.DialogBodyStyle.Render(fmt.Sprintf(
-		"%d %s%s will be updated:",
-		len(updatable),
-		kind,
-		deps.Pluralize(len(updatable), "dependency", "dependencies"),
-	)))
-
-	visible := updatable
-	extra := 0
-	if len(visible) > maxDependencyListLines {
-		extra = len(visible) - maxDependencyListLines
-		visible = visible[:maxDependencyListLines]
+	summary := t.DialogBodyStyle.Render(fmt.Sprintf(
+		"%d %s%s will be updated:", len(d.updateEntries), kind,
+		deps.Pluralize(len(d.updateEntries), "dependency", "dependencies"),
+	))
+	warnings := renderedSurface{content: " \n" +
+		t.DialogBodyStyle.Render("go.mod and go.sum will be modified.") + "\n" +
+		t.DialogBodyStyle.Render("A snapshot is taken before the update so changes can be rolled back."),
 	}
-	for _, e := range visible {
+	previewBudget := max(0, budget-surfaceHeight(top)-1-surfaceHeight(warnings))
+	limit := min(maxDependencyListLines, previewBudget)
+	if len(d.updateEntries) > limit {
+		limit = min(maxDependencyListLines, max(0, previewBudget-1))
+	}
+	lines := []string{summary}
+	for _, entry := range d.updateEntries[:min(limit, len(d.updateEntries))] {
 		lines = append(lines, t.DialogBodyStyle.Render(fmt.Sprintf(
-			"  %s: %s -> %s", e.Path, e.OldVersion, e.NewVersion,
+			"  %s: %s -> %s", entry.Path, entry.OldVersion, entry.NewVersion,
 		)))
 	}
-	if extra > 0 {
-		lines = append(lines, t.DialogBodyStyle.Render(
-			fmt.Sprintf("  …and %d more", extra),
-		))
+	if extra := len(d.updateEntries) - limit; extra > 0 {
+		lines = append(lines, t.DialogBodyStyle.Render(fmt.Sprintf("  …and %d more", extra)))
 	}
-	lines = append(lines, "")
-	lines = append(lines, t.DialogBodyStyle.Render("go.mod and go.sum will be modified."))
-	lines = append(lines, t.DialogBodyStyle.Render("A snapshot is taken before the update so changes can be rolled back."))
-	return lines
+	return joinSurfaces(top, renderedSurface{content: strings.Join(lines, "\n")}, warnings)
 }
 
 // levelSelectorLine renders "Level: Patch  Minor  [Latest]" with the
 // active level highlighted.
-func levelSelectorLine(t styles.Theme, level deps.UpdateLevel) string {
-	parts := make([]string, 0, len(deps.Levels))
-	for _, l := range deps.Levels {
-		if l == level {
-			parts = append(parts, t.DialogActiveStyle.Render(l.Label()))
-		} else {
-			parts = append(parts, t.DialogMutedStyle.Render(l.Label()))
+func levelSelectorLine(t styles.Theme, level deps.UpdateLevel) renderedSurface {
+	content := t.DialogBodyStyle.Render("Level:")
+	targets := make([]mouseTarget, 0, len(deps.Levels))
+	x := lipgloss.Width(content)
+	for _, value := range deps.Levels {
+		style := t.DialogMutedStyle
+		if value == level {
+			style = t.DialogActiveStyle
 		}
+		part := style.Render(value.Label())
+		targets = append(targets, mouseTarget{
+			rect:   cellRect{x: x, width: lipgloss.Width(part), height: lipgloss.Height(part)},
+			action: mouseAction{kind: mouseDialogLevel, level: value},
+		})
+		content = lipgloss.JoinHorizontal(lipgloss.Center, content, part)
+		x += lipgloss.Width(part)
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Center,
-		t.DialogBodyStyle.Render("Level:"),
-		lipgloss.JoinHorizontal(lipgloss.Center, parts...),
-	)
+	return renderedSurface{content: content, targets: targets}
 }
 
 // scopeSelectorLine renders "Scope: All  [Marked (2)]" with the active
 // Update scope highlighted. Without an explicit set (no marks and no
 // cursor module) only "All" is shown.
-func scopeSelectorLine(t styles.Theme, explicit bool, explicitLabel string) string {
-	styleFor := func(active bool) lipgloss.Style {
-		if active {
-			return t.DialogActiveStyle
-		}
-		return t.DialogMutedStyle
-	}
-	parts := []string{styleFor(!explicit).Render("All")}
+func scopeSelectorLine(t styles.Theme, explicit bool, explicitLabel string) renderedSurface {
+	content := t.DialogBodyStyle.Render("Scope:")
+	targets := make([]mouseTarget, 0, 2)
+	x := lipgloss.Width(content)
+	labels := []string{"All"}
 	if explicitLabel != "" {
-		parts = append(parts, styleFor(explicit).Render(explicitLabel))
+		labels = append(labels, explicitLabel)
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Center,
-		t.DialogBodyStyle.Render("Scope:"),
-		lipgloss.JoinHorizontal(lipgloss.Center, parts...),
-	)
+	for index, label := range labels {
+		value := index == 1
+		style := t.DialogMutedStyle
+		if value == explicit {
+			style = t.DialogActiveStyle
+		}
+		part := style.Render(label)
+		if explicitLabel != "" {
+			targets = append(targets, mouseTarget{
+				rect:   cellRect{x: x, width: lipgloss.Width(part), height: lipgloss.Height(part)},
+				action: mouseAction{kind: mouseDialogScope, explicit: value},
+			})
+		}
+		content = lipgloss.JoinHorizontal(lipgloss.Center, content, part)
+		x += lipgloss.Width(part)
+	}
+	return renderedSurface{content: content, targets: targets}
 }
 
 // explicitScopeLabel names the explicit Update scope offered by the
@@ -333,7 +337,7 @@ func checksDialogLines(t styles.Theme) []string {
 	}
 }
 
-func rollbackDialogLines(t styles.Theme, result *deps.DependencyCheckResult, inconclusive bool) []string {
+func rollbackDialogLines(t styles.Theme, result *deps.DependencyCheckResult, inconclusive bool, limit int) []string {
 	title := "⚠ Checks failed"
 	if inconclusive {
 		title = "⚠ Checks inconclusive"
@@ -347,8 +351,9 @@ func rollbackDialogLines(t styles.Theme, result *deps.DependencyCheckResult, inc
 		if result.Output != "" {
 			output := strings.Split(result.Output, "\n")
 			visible := output
-			if len(visible) > maxDependencyListLines {
-				visible = visible[:maxDependencyListLines]
+			limit = min(maxDependencyListLines, max(0, limit))
+			if len(visible) > limit {
+				visible = visible[:limit]
 			}
 			for _, l := range visible {
 				lines = append(lines, t.DialogMutedStyle.Render(l))
@@ -363,44 +368,48 @@ func rollbackDialogLines(t styles.Theme, result *deps.DependencyCheckResult, inc
 	return lines
 }
 
-func restoreDialogLines(t styles.Theme, backups []deps.DependencyBackupInfo, cursor int) []string {
-	lines := []string{
+func restoreWindow(count, cursor, limit int) (start, end int) {
+	limit = max(1, limit)
+	start = max(0, cursor-limit+1)
+	start = min(start, max(0, count-limit))
+	return start, min(count, start+limit)
+}
+
+func restoreDialogSurface(t styles.Theme, backups []deps.DependencyBackupInfo, cursor, budget int) renderedSurface {
+	top := renderedSurface{content: strings.Join([]string{
 		t.DialogTitleStyle.Render(t.DialogWarningStyle.Render("Dependency backups")),
-		"",
+		" ",
 		t.DialogBodyStyle.Render("Choose a saved dependency backup:"),
-	}
-	start := 0
-	if cursor >= maxDependencyListLines {
-		start = cursor - maxDependencyListLines + 1
-	}
-	if maxStart := len(backups) - maxDependencyListLines; start > maxStart {
-		start = maxStart
-	}
-	if start < 0 {
-		start = 0
-	}
-	end := len(backups)
-	if end > start+maxDependencyListLines {
-		end = start + maxDependencyListLines
-	}
-	visible := backups[start:end]
-	for i, b := range visible {
+	}, "\n")}
+	limit := min(maxDependencyListLines, max(1, budget-surfaceHeight(top)-3))
+	start, end := restoreWindow(len(backups), cursor, limit)
+	lines := make([]string, 0, end-start+1)
+	targets := make([]mouseTarget, 0, end-start+1)
+	targets = append(targets, mouseTarget{
+		rect:   cellRect{width: 58, height: end - start},
+		action: mouseAction{kind: mouseScroll},
+	})
+	for index := start; index < end; index++ {
+		backup := backups[index]
 		prefix := "  "
-		if start+i == cursor {
+		if index == cursor {
 			prefix = "> "
 		}
-		lines = append(lines, t.DialogBodyStyle.Render(fmt.Sprintf(
-			"%s%s  %s  %d update(s)",
-			prefix,
-			b.Name,
-			b.Kind,
-			b.Updated,
-		)))
+		line := t.DialogBodyStyle.Render(fmt.Sprintf(
+			"%s%s  %s  %d update(s)", prefix, backup.Name, backup.Kind, backup.Updated,
+		))
+		lines = append(lines, line)
+		targets = append(targets, mouseTarget{
+			rect:   cellRect{y: index - start, width: lipgloss.Width(line), height: lipgloss.Height(line)},
+			action: mouseAction{kind: mouseBackupRow, index: index, identity: backup.Name, path: backup.Path},
+		})
 	}
-	if len(backups) > end {
-		lines = append(lines, t.DialogBodyStyle.Render(fmt.Sprintf("  …and %d more", len(backups)-end)))
+	if end < len(backups) {
+		lines = append(lines, t.DialogMutedStyle.Render(fmt.Sprintf("  …and %d more", len(backups)-end)))
 	}
-	lines = append(lines, "")
-	lines = append(lines, t.DialogMutedStyle.Render("Current go.mod and go.sum will be saved before restore."))
-	return lines
+	return joinSurfaces(
+		top,
+		renderedSurface{content: strings.Join(lines, "\n"), targets: targets},
+		renderedSurface{content: " \n" + t.DialogMutedStyle.Render("Current go.mod and go.sum will be saved before restore.")},
+	)
 }

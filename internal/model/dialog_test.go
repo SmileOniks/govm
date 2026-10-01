@@ -15,7 +15,7 @@ func TestRenderDependencyUpdateDialogContainsWarning(t *testing.T) {
 		kind:          dialogUpdate,
 		choiceYes:     true,
 		updateEntries: []coredeps.DependencyUpdateEntry{{Path: "example.com/lib", OldVersion: "v1.0.0", NewVersion: "v1.1.0"}},
-	}.render(testTheme(), depsTab{}, viewportSize{Width: 64, Height: 20}))
+	}.render(testTheme(), depsTab{}, viewportSize{Width: 64, Height: 20}).content)
 
 	for _, want := range []string{"Warning", "Level:", "Patch", "Minor", "Latest", "Scope:", "All", "will be updated", "Yes", "No"} {
 		if !strings.Contains(dialog, want) {
@@ -33,7 +33,7 @@ func TestRenderDependencyUpdateDialogListsModules(t *testing.T) {
 		kind:          dialogUpdate,
 		choiceYes:     true,
 		updateEntries: entries,
-	}.render(testTheme(), depsTab{}, viewportSize{Width: 64, Height: 20}))
+	}.render(testTheme(), depsTab{}, viewportSize{Width: 64, Height: 20}).content)
 
 	for _, want := range []string{"github.com/example/lib", "v1.0.0", "v1.1.0", "github.com/example/other"} {
 		if !strings.Contains(dialog, want) {
@@ -55,7 +55,7 @@ func TestRenderDependencyUpdateDialogTruncatesLongLists(t *testing.T) {
 		kind:          dialogUpdate,
 		choiceYes:     true,
 		updateEntries: entries,
-	}.render(testTheme(), depsTab{}, viewportSize{Width: 64, Height: 20}))
+	}.render(testTheme(), depsTab{}, viewportSize{Width: 64, Height: 20}).content)
 
 	if !strings.Contains(dialog, "and") || !strings.Contains(dialog, "more") {
 		t.Fatalf("expected truncation hint in dialog, got:\n%s", dialog)
@@ -72,8 +72,7 @@ func TestRenderDependencyRestoreDialogKeepsCursorVisible(t *testing.T) {
 		})
 	}
 
-	dialog := stripANSI(depsDialog{kind: dialogRestore, choiceYes: true, cursor: 6, maxCursor: 6}.
-		render(testTheme(), depsTab{backups: backups}, viewportSize{Width: 64, Height: 20}))
+	dialog := stripANSI(depsDialog{kind: dialogRestore, choiceYes: true, cursor: 6, maxCursor: 6}.render(testTheme(), depsTab{backups: backups}, viewportSize{Width: 64, Height: 20}).content)
 
 	if !strings.Contains(dialog, "> 2026-07-09_12-00-06.json") {
 		t.Fatalf("expected selected backup to be visible, got:\n%s", dialog)
@@ -81,8 +80,7 @@ func TestRenderDependencyRestoreDialogKeepsCursorVisible(t *testing.T) {
 }
 
 func TestRenderDependencyChecksDialogContainsCommands(t *testing.T) {
-	dialog := stripANSI(depsDialog{kind: dialogChecks, choiceYes: true}.
-		render(testTheme(), depsTab{}, viewportSize{Width: 64, Height: 20}))
+	dialog := stripANSI(depsDialog{kind: dialogChecks, choiceYes: true}.render(testTheme(), depsTab{}, viewportSize{Width: 64, Height: 20}).content)
 
 	for _, want := range []string{"Run checks?", "go test", "go vet", "Yes", "No"} {
 		if !strings.Contains(dialog, want) {
@@ -101,7 +99,7 @@ func TestRenderDependencyRollbackDialogContainsCommand(t *testing.T) {
 		kind:        dialogRollback,
 		choiceYes:   true,
 		checkResult: &result,
-	}.render(testTheme(), depsTab{}, viewportSize{Width: 64, Height: 20}))
+	}.render(testTheme(), depsTab{}, viewportSize{Width: 64, Height: 20}).content)
 
 	for _, want := range []string{"Checks failed", "go test ./...", "FAIL: example_test", "Roll back", "Keep"} {
 		if !strings.Contains(dialog, want) {
@@ -132,17 +130,13 @@ func TestRenderDependencyDialogsRespectViewportWidth(t *testing.T) {
 					updateEntries: []coredeps.DependencyUpdateEntry{{
 						Path: longPath, OldVersion: "v1.0.0", NewVersion: "v1.1.0",
 					}},
-				}.render(
-					testTheme(),
-					depsTab{},
-					viewportSize{Width: width, Height: 20})
+				}.render(testTheme(), depsTab{}, viewportSize{Width: width, Height: 20}).content
 			},
 		},
 		{
 			name: "checks",
 			render: func(width int) string {
-				return depsDialog{kind: dialogChecks, choiceYes: true}.
-					render(testTheme(), depsTab{}, viewportSize{Width: width, Height: 20})
+				return depsDialog{kind: dialogChecks, choiceYes: true}.render(testTheme(), depsTab{}, viewportSize{Width: width, Height: 20}).content
 			},
 		},
 		{
@@ -155,17 +149,13 @@ func TestRenderDependencyDialogsRespectViewportWidth(t *testing.T) {
 						Command: longPath,
 						Output:  longOutput,
 					},
-				}.render(
-					testTheme(),
-					depsTab{},
-					viewportSize{Width: width, Height: 20})
+				}.render(testTheme(), depsTab{}, viewportSize{Width: width, Height: 20}).content
 			},
 		},
 		{
 			name: "restore",
 			render: func(width int) string {
-				return depsDialog{kind: dialogRestore, choiceYes: true}.
-					render(testTheme(), depsTab{backups: backups}, viewportSize{Width: width, Height: 20})
+				return depsDialog{kind: dialogRestore, choiceYes: true}.render(testTheme(), depsTab{backups: backups}, viewportSize{Width: width, Height: 20}).content
 			},
 		},
 	}
@@ -250,7 +240,7 @@ func TestSpliceCentered_EdgeCases(t *testing.T) {
 func TestOverlayDialog_ReplacesCenterRegion(t *testing.T) {
 	bg := strings.Repeat("line\n", 9) + "line"
 	dlg := "AAA\nBBB\nCCC"
-	out := overlayDialog(bg, dlg, viewportSize{Width: 20, Height: 10})
+	out := overlayDialog(renderedSurface{content: bg}, renderedSurface{content: dlg}, viewportSize{Width: 20, Height: 10}).content
 	stripped := stripANSI(out)
 	for _, want := range []string{"AAA", "BBB", "CCC"} {
 		if !strings.Contains(stripped, want) {
@@ -266,7 +256,7 @@ func TestOverlayDialog_ReplacesCenterRegion(t *testing.T) {
 func TestOverlayDialog_ClampsToSize(t *testing.T) {
 	bg := strings.Repeat("bg\n", 15) + "bg"
 	dlg := "VISIBLE"
-	out := overlayDialog(bg, dlg, viewportSize{})
+	out := overlayDialog(renderedSurface{content: bg}, renderedSurface{content: dlg}, viewportSize{}).content
 	stripped := stripANSI(out)
 	if !strings.Contains(stripped, "VISIBLE") {
 		t.Fatalf("expected dialog content in output, got:\n%s", out)
@@ -288,7 +278,7 @@ func TestOverlayDialog_PreservesRowsOutsideDialog(t *testing.T) {
 	bg := strings.Join(lines, "\n")
 	dlg := "AAA\nBBB\nCCC"
 
-	out := overlayDialog(bg, dlg, viewportSize{Width: 30, Height: 20})
+	out := overlayDialog(renderedSurface{content: bg}, renderedSurface{content: dlg}, viewportSize{Width: 30, Height: 20}).content
 	stripped := stripANSI(out)
 	strippedLines := strings.Split(stripped, "\n")
 
@@ -358,7 +348,7 @@ func TestOverlayDialogPreservesANSIWideAndCombiningContent(t *testing.T) {
 	}, "\n")
 	dialog := "\x1b[35m界e\u0301😀\x1b[0m"
 
-	got := overlayDialog(background, dialog, viewportSize{Width: 20, Height: 5})
+	got := overlayDialog(renderedSurface{content: background}, renderedSurface{content: dialog}, viewportSize{Width: 20, Height: 5}).content
 	lines := strings.Split(got, "\n")
 	if len(lines) != 5 {
 		t.Fatalf("line count = %d, want 5", len(lines))

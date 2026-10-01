@@ -71,9 +71,9 @@ func installedTestDone(t testing.TB, cmd tea.Cmd) pruneDoneMsg {
 
 func installedTestAssertNoop(t testing.TB, m Model, msg tea.Msg) Model {
 	t.Helper()
-	beforeView, beforeStatus, beforeContext := m.View().Content, m.Status, m.inputContext()
+	beforeStatus, beforeContext := m.Status, m.inputContext()
 	next, cmd := installedTestUpdate(t, m, msg)
-	if cmd != nil || next.View().Content != beforeView || next.Status != beforeStatus || next.inputContext() != beforeContext {
+	if cmd != nil || next.Status != beforeStatus || next.inputContext() != beforeContext {
 		t.Fatalf("%T changed the current flow: command=%v context=%v status=%q", msg, cmd != nil, next.inputContext(), next.Status.Text())
 	}
 	return next

@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/smileoniks-ctrl/govm/internal/config"
 	"github.com/smileoniks-ctrl/govm/internal/styles"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
 
 func (m Model) View() tea.View {
@@ -24,72 +23,70 @@ func (m Model) View() tea.View {
 	if m.TermHeight > 0 {
 		viewport.Height = m.TermHeight
 	}
-	if (m.TermWidth > 0 || m.TermHeight > 0 || (m.Width == 1 && m.Height == 1)) &&
-		(m.TermWidth < styles.MinTermWidth || m.TermHeight < styles.MinTermHeight) {
+	if m.inMinimumViewport() {
 		v := tea.NewView(renderMinimumViewport(t, m.TermWidth, m.TermHeight))
 		v.BackgroundColor = t.MinimumViewportBackground
 		v.AltScreen = true
 		return v
 	}
 
-	components := make([]string, 0, 6)
-	components = append(components, renderHeader(t, width, utils.GetVersion(), m.upgradeNotice))
-	components = append(components, renderTabs(t, m.CurrentTab))
-
-	if m.ShimPathWarning != "" {
-		components = append(components, renderStatus(t, "warning", m.ShimPathWarning, width))
-	}
-
+	chrome := m.chrome(width)
+	var content renderedSurface
 	switch m.CurrentTab {
 	case AvailableTab:
-		content := m.projection.availableView()
+		content = m.projection.availableView()
 		if filterLine := m.renderAppliedFilterLine(t, width); filterLine != "" {
-			// The indicator borrows one row from the content canvas
-			// so the overall layout height is unchanged.
-			components = append(components, filterLine)
-			content = renderContentCanvas(content, width, maxInt(0, height-1))
+			content = joinSurfaces(
+				renderedSurface{content: filterLine},
+				contentCanvas(content, width, max(0, height-lipgloss.Height(filterLine))),
+			)
 		} else {
-			content = renderContentCanvas(content, width, height)
+			content = contentCanvas(content, width, height)
 		}
-		components = append(components, content)
 	case InstalledTab:
-		components = append(components, renderContentCanvas(m.projection.installedView(), width, height))
-		if summary := m.installed.summaryView(); summary != "" {
-			components = append(components, summary)
-		}
+		content = contentCanvas(m.projection.installedView(), width, height)
 	case DepsTab:
-		components = append(components, renderContentCanvas(m.deps.view(), width, height))
+		content = contentCanvas(m.deps.view(), width, height)
 	case SettingsTab:
-		components = append(components, renderContentCanvas(m.settings.view(), width, height))
+		content = contentCanvas(m.settings.view(width), width, height)
 	}
-
-	if status, statusType := m.composeStatus(); status != "" {
-		components = append(components, renderStatus(t, statusType, status, width))
+	if m.inputContext() != inputTab {
+		content.targets = nil
 	}
-
-	components = append(components, renderHelpBar(t, m, width))
-	rendered := appStyle.Render(lipgloss.JoinVertical(lipgloss.Left, components...))
+	ctx := m.inputContext()
+	if ctx != inputTab && ctx != inputFilter && ctx != inputDeleteConfirm {
+		chrome.tabs.targets = nil
+	}
+	surface := joinSurfaces(chrome.header, chrome.tabs, chrome.warning, content, chrome.summary, chrome.status, chrome.controls)
+	frameH, frameV := styles.FrameOverhead(m.Layout)
+	surface = surface.translated(frameH/2, frameV/2, cellRect{width: viewport.Width, height: viewport.Height})
+	surface.content = appStyle.Render(surface.content)
 
 	// The modal surface of the context beneath the Help overlay is
 	// drawn first; the overlay, when open, sits on top of it.
 	switch m.inputContextBeneathHelp() {
 	case inputSettingsInput:
 		if m.settings.editingSource() {
-			rendered = overlayDialog(rendered, renderDistributionSourceDialog(t, m.settings, viewport), viewport)
+			surface = overlayDialog(surface, renderDistributionSourceDialog(t, m.settings, viewport), viewport)
 		} else {
-			rendered = overlayDialog(rendered, renderDepsBackupLimitDialog(t, m.settings, viewport), viewport)
+			surface = overlayDialog(surface, renderDepsBackupLimitDialog(t, m.settings, viewport), viewport)
 		}
 	case inputDepsDialog:
-		rendered = overlayDialog(rendered, m.deps.dialogView(t, viewport), viewport)
+		surface = overlayDialog(surface, m.deps.dialogView(t, viewport), viewport)
 	case inputPruneConfirm:
-		rendered = overlayDialog(rendered, m.installed.dialogView(t, viewport), viewport)
+		surface = overlayDialog(surface, m.installed.dialogView(t, viewport), viewport)
 	}
 	if m.HelpVisible {
-		rendered = overlayDialog(rendered, renderHelpOverlay(t, m, viewport), viewport)
+		surface = overlayDialog(surface, renderHelpOverlay(t, m, viewport), viewport)
 	}
 
-	v := tea.NewView(rendered)
+	v := tea.NewView(mouseFrameContent(surface.content, m.mouseRevision))
 	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+	v.OnMouse = mouseCallback(surface, mouseActionMsg{
+		revision: m.mouseRevision, tab: m.CurrentTab,
+		context: m.inputContext(), dialogKind: m.deps.dialog.kind,
+	})
 	return v
 }
 
@@ -212,14 +209,22 @@ func renderHeader(t styles.Theme, width int, version, notice string) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, title, strings.Repeat(" ", spacerWidth), meta)
 }
 
-func renderTabs(t styles.Theme, currentTab int) string {
-	tabs := []string{
-		renderTab(t, "Available", currentTab == AvailableTab),
-		renderTab(t, "Installed", currentTab == InstalledTab),
-		renderTab(t, "Deps", currentTab == DepsTab),
-		renderTab(t, "Settings", currentTab == SettingsTab),
+func renderTabs(t styles.Theme, currentTab int) renderedSurface {
+	labels := [...]string{"Available", "Installed", "Deps", "Settings"}
+	parts := make([]string, 0, len(labels))
+	targets := make([]mouseTarget, 0, len(labels))
+	x := 0
+	for index, label := range labels {
+		part := renderTab(t, label, currentTab == index)
+		partWidth, partHeight := lipgloss.Width(part), lipgloss.Height(part)
+		parts = append(parts, part)
+		targets = append(targets, mouseTarget{
+			rect:   cellRect{x: x, width: partWidth, height: partHeight},
+			action: mouseAction{kind: mouseTab, index: index},
+		})
+		x += partWidth
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Left, tabs...)
+	return renderedSurface{content: lipgloss.JoinHorizontal(lipgloss.Left, parts...), targets: targets}
 }
 
 func renderTab(t styles.Theme, label string, active bool) string {
@@ -256,33 +261,52 @@ func renderStatus(t styles.Theme, messageType, message string, width int) string
 
 // renderSettingsView renders the rows of the Settings tab; the tab
 // owns it and the Model reaches it through view().
-func renderSettingsView(settings settingsTab) string {
+func renderSettingsView(settings settingsTab, width int) renderedSurface {
 	values := settings.values
-	rows := []string{
-		fmt.Sprintf("Deps display: %s", depsDisplayLabel(values.DepsDisplay)),
-		fmt.Sprintf("Theme: %s", themeLabel(values.Theme)),
-		fmt.Sprintf("Deps backups: %d", values.DepsBackupLimit),
-		fmt.Sprintf("Distribution source: %s", truncateSettingValue(values.DistributionSource, 48)),
-		fmt.Sprintf("Upgrade notice: %s", upgradeNoticeLabel(values.UpgradeNotice)),
+	labels := [...]string{"Deps display", "Theme", "Deps backups", "Distribution source", "Upgrade notice"}
+	valueLabels := [...]string{
+		depsDisplayLabel(values.DepsDisplay), themeLabel(values.Theme),
+		fmt.Sprint(values.DepsBackupLimit), values.DistributionSource,
+		upgradeNoticeLabel(values.UpgradeNotice),
 	}
-	for i, kind := range settingRows {
+	lines := make([]string, 0, len(settingRows))
+	targets := make([]mouseTarget, 0, len(settingRows)*2+3)
+	targets = append(targets, mouseTarget{
+		rect:   cellRect{width: width, height: len(settingRows)},
+		action: mouseAction{kind: mouseScroll},
+	})
+	for index, kind := range settingRows {
 		prefix := "  "
 		if kind == settings.cursor {
 			prefix = "> "
 		}
-		rows[i] = prefix + rows[i]
+		prefix += labels[index] + ": "
+		x := ansi.StringWidth(prefix)
+		value := truncateSettingValue(valueLabels[index], max(0, width-x))
+		line := prefix + value
+		targets = append(targets,
+			mouseTarget{rect: cellRect{y: index, width: width, height: 1},
+				action: mouseAction{kind: mouseSettingRow, index: index}},
+			mouseTarget{rect: cellRect{x: x, y: index, width: ansi.StringWidth(value), height: 1},
+				action: mouseAction{kind: mouseSettingActivate, index: index}},
+		)
+		if kind == settingRowDepsBackups {
+			x += ansi.StringWidth(value) + 1
+			line += " [−] [+]"
+			for step := range 2 {
+				targets = append(targets, mouseTarget{
+					rect:   cellRect{x: x + step*4, y: index, width: 3, height: 1},
+					action: mouseAction{kind: mouseSettingStep, index: index, delta: step*2 - 1},
+				})
+			}
+		}
+		lines = append(lines, line)
 	}
-	return strings.Join(rows, "\n")
+	return renderedSurface{content: strings.Join(lines, "\n"), targets: targets}
 }
 
-func truncateSettingValue(value string, max int) string {
-	if max < 1 || len(value) <= max {
-		return value
-	}
-	if max <= 3 {
-		return value[:max]
-	}
-	return value[:max-3] + "..."
+func truncateSettingValue(value string, width int) string {
+	return ansi.Truncate(value, max(0, width), "…")
 }
 
 func depsDisplayLabel(mode config.DepsDisplayMode) string {
@@ -306,29 +330,55 @@ func themeLabel(name config.ThemeName) string {
 	return "Current"
 }
 
-// renderHelpBar renders the one-line hint bar from the keybinding
-// registry (ADR-0001): the short-flagged bindings of the active input
-// context (dependency dialog, delete confirmation, or tab) followed
-// by the short global bindings. The overlay and every other hint
-// variant render from the same registry, so the two can never drift
-// apart.
-func renderHelpBar(t styles.Theme, m Model, width int) string {
-	return renderKeyHints(t, shortHints(contextKeyBindings(m, m.inputContext())), width)
+// renderHelpBar renders whole registry controls, wrapping without hiding actions.
+func renderHelpBar(t styles.Theme, m Model, width int) renderedSurface {
+	sections := contextKeyBindings(m, m.inputContext())
+	if m.inputContext() == inputTab && m.CurrentTab == AvailableTab && m.projection.availableFilterApplied() {
+		sections = append(sections, helpSection{bindings: []keyBinding{{
+			mouseControls: mouseControls("esc clear", tea.KeyPressMsg{Code: tea.KeyEscape}),
+		}}})
+	}
+	return renderControls(t, sections, width, m.settings.checkingDistributionSource)
 }
 
-func renderKeyHints(t styles.Theme, hints [][2]string, width int) string {
-	parts := make([]string, 0, len(hints))
-	for _, hint := range hints {
-		parts = append(parts, fmt.Sprintf("%s %s", t.HelpKeyStyle.Render(hint[0]), t.HelpTextStyle.Render(hint[1])))
+func renderControls(t styles.Theme, sections []helpSection, width int, checking bool) renderedSurface {
+	var content strings.Builder
+	targets := make([]mouseTarget, 0)
+	x, y := 0, 0
+	for _, section := range sections {
+		for _, binding := range section.bindings {
+			for _, control := range binding.mouseControls {
+				if control.label == "" {
+					continue
+				}
+				keyLabel, description, _ := strings.Cut(control.label, " ")
+				button := t.HelpKeyStyle.Render("["+keyLabel) + t.HelpTextStyle.Render(" "+description+"]")
+				disabled := checking && (control.key.Code == tea.KeyEnter || control.key.Code == 'r')
+				if disabled {
+					button = t.HelpTextStyle.Render("[" + control.label + "]")
+				}
+				buttonWidth := lipgloss.Width(button)
+				if x > 0 && x+2+buttonWidth > width {
+					content.WriteByte('\n')
+					x = 0
+					y++
+				}
+				if x > 0 {
+					content.WriteString("  ")
+					x += 2
+				}
+				content.WriteString(button)
+				if !disabled {
+					targets = append(targets, mouseTarget{
+						rect:   cellRect{x: x, y: y, width: buttonWidth, height: 1},
+						action: mouseAction{kind: mouseKey, key: control.key},
+					})
+				}
+				x += buttonWidth
+			}
+		}
 	}
-
-	helpText := strings.Join(parts, "  ")
-
-	if lipgloss.Width(helpText) > width {
-		helpText = styles.TruncateText(helpText, width)
-	}
-
-	return helpText
+	return renderedSurface{content: content.String(), targets: targets}
 }
 
 func renderContentCanvas(content string, width, height int) string {
@@ -354,6 +404,7 @@ func renderContentCanvas(content string, width, height int) string {
 				lineStart = lineEnd + 1
 			}
 		}
+		line = ansi.Cut(line, 0, max(0, width))
 		canvas.WriteString(line)
 		if padding := width - ansi.StringWidth(line); padding > 0 {
 			for range padding {
