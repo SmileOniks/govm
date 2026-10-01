@@ -11,7 +11,7 @@ GoVM is a modern tool for managing multiple Go versions on your system. It featu
 ## Features
 
 - Beautiful TUI built with [Charm Bubbletea v2](https://charm.land/bubbletea/v2) with a responsive layout that adapts to your terminal size (normal and wide breakpoints) and a minimum viewport of 64x20
-- Full mouse control for tabs, row selection, scrolling, actions, settings, confirmations, and first-time setup; action buttons wrap instead of being truncated
+- Experimental mouse control, currently being tested in release candidates: tabs, row selection, scrolling, actions, settings, confirmations, and first-time setup; action buttons wrap instead of being truncated
 - Keyboard shortcut overlay (`?`) that lists every binding of the current context
 - Inline fuzzy filter on the Available tab (`f`): type to narrow the version list fzf-style; `enter` applies, `esc` clears
 - Version string shown in the TUI header and CLI help output
@@ -136,7 +136,7 @@ The TUI header shows the GoVM version so you always know which build is running.
 
 #### Mouse controls
 
-Use a terminal with mouse reporting support. All keyboard shortcuts remain available.
+Mouse support is experimental and is currently being tested in release candidates. Use a terminal with mouse reporting support. All keyboard shortcuts remain available.
 
 - **Tabs and actions:** left-click a tab or a visible action button. Buttons retain their keyboard labels and wrap onto additional lines in narrow terminals.
 - **Version lists:** click a title, description, or table row to select it. Selection never installs, activates, or deletes a version; use the separate Install, Use, or Delete button. The wheel moves the selection one row at a time without wrapping.
