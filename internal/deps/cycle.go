@@ -5,8 +5,9 @@
 //
 // UpdateCycle is immutable and free of IO/UI dependencies. Invalid
 // events return InvalidTransitionError and leave state unchanged. All
-// slices and snapshots stored in or returned from the cycle are
-// defensively cloned so callers cannot mutate internal state.
+// slices and snapshots stored in or returned from the cycle, including
+// nested ModuleDependency.Versions slices, are defensively cloned so
+// callers cannot mutate internal state.
 package deps
 
 import (
@@ -680,6 +681,12 @@ func cloneDeps(deps []ModuleDependency) []ModuleDependency {
 	}
 	out := make([]ModuleDependency, len(deps))
 	copy(out, deps)
+	for i := range out {
+		if deps[i].Versions != nil {
+			out[i].Versions = make([]string, len(deps[i].Versions))
+			copy(out[i].Versions, deps[i].Versions)
+		}
+	}
 	return out
 }
 

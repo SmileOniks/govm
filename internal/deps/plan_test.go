@@ -147,6 +147,73 @@ func TestBuildUpdatePlan(t *testing.T) {
 	}
 }
 
+func TestCyclePlanIsolatedFromVersionsMutation(t *testing.T) {
+	for _, name := range []string{"event-input", "dependencies-output"} {
+		t.Run(name, func(t *testing.T) {
+			catalog := planDeps()
+			c, intent, err := NewUpdateCycle().Handle(StartEvent{})
+			assertNoErr(t, err)
+			assertIntent[IntentCheckUpdates](t, intent)
+
+			assertPlan := func(intent Intent, level UpdateLevel, want []DependencyUpdateEntry) {
+				t.Helper()
+				confirm := assertIntent[IntentConfirmApply](t, intent)
+				if confirm.Level != level {
+					t.Fatalf("confirmation level = %s, want %s", confirm.Level, level)
+				}
+				if !reflect.DeepEqual(confirm.Entries, want) {
+					t.Fatalf("confirmation entries = %#v, want %#v", confirm.Entries, want)
+				}
+				if got := c.Entries(); !reflect.DeepEqual(got, want) {
+					t.Fatalf("cycle entries = %#v, want %#v", got, want)
+				}
+			}
+
+			c, intent, err = c.Handle(CheckUpdatesDoneEvent{Dependencies: catalog})
+			assertNoErr(t, err)
+			wantLatest := []DependencyUpdateEntry{
+				{Path: "github.com/spf13/cobra", OldVersion: "v1.0.0", NewVersion: "v1.2.0"},
+			}
+			assertPlan(intent, LevelLatest, wantLatest)
+
+			mutable := catalog
+			if name == "dependencies-output" {
+				mutable = c.Dependencies()
+			}
+			mutable[0].Versions[1] = "v1.0.9"
+			mutable[0].Versions[2] = "v1.9.0"
+			mutable[2].Versions[2] = "v0.9.0"
+
+			c, intent, err = c.Handle(ChangeLevelEvent{Level: LevelPatch})
+			assertNoErr(t, err)
+			assertPlan(intent, LevelPatch, []DependencyUpdateEntry{
+				{Path: "github.com/spf13/cobra", OldVersion: "v1.0.0", NewVersion: "v1.0.1"},
+			})
+
+			c, intent, err = c.Handle(ChangeLevelEvent{Level: LevelMinor})
+			assertNoErr(t, err)
+			assertPlan(intent, LevelMinor, wantLatest)
+
+			c, intent, err = c.Handle(ChangeScopeEvent{Modules: []string{"text"}})
+			assertNoErr(t, err)
+			wantText := []DependencyUpdateEntry{
+				{Path: "golang.org/x/text", OldVersion: "v0.1.0", NewVersion: "v0.3.0"},
+			}
+			assertPlan(intent, LevelMinor, wantText)
+			if !assertIntent[IntentConfirmApply](t, intent).Explicit {
+				t.Fatal("confirmation should have explicit scope")
+			}
+
+			c, intent, err = c.Handle(ConfirmApplyEvent{Yes: true})
+			assertNoErr(t, err)
+			apply := assertIntent[IntentApplyUpdates](t, intent)
+			if !reflect.DeepEqual(apply.Entries, wantText) {
+				t.Fatalf("apply entries = %#v, want %#v", apply.Entries, wantText)
+			}
+		})
+	}
+}
+
 func TestCycleChangeLevelRebuildsPlan(t *testing.T) {
 	c, _, _ := NewUpdateCycle().Handle(StartEvent{ModuleDir: "/mod"})
 	c, intent, err := c.Handle(CheckUpdatesDoneEvent{Dependencies: planDeps()})
