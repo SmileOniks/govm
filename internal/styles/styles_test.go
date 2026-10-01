@@ -142,9 +142,8 @@ func TestNewThemeFallsBackToCurrentForUnknownTheme(t *testing.T) {
 	}
 }
 
-// TestNewThemeIsPure proves NewTheme is safe to call concurrently. It is
-// the verification gate for the parallel-test story (architecture review
-// candidate 5, cause 2) and must pass under -race.
+// TestNewThemeIsPure proves NewTheme is safe to call concurrently; it
+// must pass under -race.
 func TestNewThemeIsPure(t *testing.T) {
 	t.Parallel()
 

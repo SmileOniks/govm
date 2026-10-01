@@ -130,7 +130,6 @@ func TestMarkAllMarksEveryListedRowInBothDisplayModes(t *testing.T) {
 				t.Fatalf("display %v: row %q not rendered as marked", display, row[0])
 			}
 		}
-		// Second press clears everything.
 		m = press(t, m, tea.KeyPressMsg{Code: 'a'})
 		if len(m.deps.marks) != 0 {
 			t.Fatalf("display %v: expected marks cleared, got %v", display, m.deps.marks)

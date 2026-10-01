@@ -343,8 +343,6 @@ func (s *DepsService) advance(c deps.UpdateCycle, intent deps.Intent, confirm fu
 	}
 }
 
-// renderApplyConfirm prints the list of entries that will be updated
-// before asking the user to confirm the apply.
 func (s *DepsService) renderApplyConfirm(i deps.IntentConfirmApply) {
 	kind := "direct "
 	if i.Explicit {

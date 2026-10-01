@@ -49,9 +49,7 @@ func listItemName(m Model, index int) string {
 	return it.Name
 }
 
-// ---------------------------------------------------------------------------
-// 1. Invalid VersionsMsg preserves prior projection and reports error.
-// ---------------------------------------------------------------------------
+// Invalid VersionsMsg preserves prior projection and reports error.
 
 // TestInvalidVersionsMsgPreservesPriorProjection verifies that an
 // invalid VersionsMsg (containing a duplicate version id) dispatched
@@ -188,9 +186,7 @@ func TestCatalogModelReconciliation(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// 5. Theme toggle refreshes cached RenderedTitle.
-// ---------------------------------------------------------------------------
+// Theme toggle refreshes cached RenderedTitle.
 
 // TestThemeToggleRefreshesRenderedTitle verifies that toggling the theme
 // via applyRuntimeTheme refreshes the cached RenderedTitle on every list
@@ -210,7 +206,6 @@ func TestThemeToggleRefreshesRenderedTitle(t *testing.T) {
 	}
 	oldTitle := it0.RenderedTitle
 
-	// Toggle to the light theme.
 	m.settings.values.Theme = config.ThemeLight
 	m.applyRuntimeTheme()
 
@@ -241,9 +236,7 @@ func TestThemeToggleRefreshesRenderedTitle(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// 6. Selection preserved by version identity across reorder.
-// ---------------------------------------------------------------------------
+// Selection preserved by version identity across reorder.
 
 // TestSelectionPreservedByVersionIdentityAcrossReorder verifies that the
 // catalog tracks list selection by version identity (version string),
@@ -297,9 +290,7 @@ func TestUnchangedReplaceDoesNotRepublishProjection(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
-// 7. Fallback index after selected identity removal.
-// ---------------------------------------------------------------------------
+// Fallback index after selected identity removal.
 
 // TestFallbackIndexAfterSelectedIdentityRemoval verifies that when the
 // selected version is removed from the catalog (replaceVersions without

@@ -21,7 +21,7 @@ import (
 	"github.com/smileoniks-ctrl/govm/internal/state"
 )
 
-// --- test doubles -----------------------------------------------------------
+// Test doubles
 
 type fakeDoer struct {
 	respond func(*http.Request) (*http.Response, error)
@@ -70,7 +70,7 @@ func versionOutput(version string) []byte {
 	return []byte(fmt.Sprintf("go version go%s %s/%s\n", version, runtime.GOOS, runtime.GOARCH))
 }
 
-// --- helpers ----------------------------------------------------------------
+// Helpers
 
 func must(t *testing.T, err error) {
 	t.Helper()
@@ -180,7 +180,7 @@ func seedInstall(t *testing.T, dir string) {
 	must(t, os.WriteFile(filepath.Join(dir, "OLD_MARKER"), []byte("old"), 0o600))
 }
 
-// --- validation -------------------------------------------------------------
+// Validation
 
 func TestInstall_Validation(t *testing.T) {
 	base := func() Request { return makeRequest("1.22.0") }
@@ -287,7 +287,7 @@ func TestProductionHTTPClientRedirectPolicy(t *testing.T) {
 	}
 }
 
-// --- lock -------------------------------------------------------------------
+// Lock
 
 func TestInstall_LockContention(t *testing.T) {
 	s, tmp := newTestService(t, "1.22.0")
@@ -341,7 +341,7 @@ func TestInstall_CancelledDownloadReleasesLock(t *testing.T) {
 	}
 }
 
-// --- download / integrity ---------------------------------------------------
+// Download and integrity
 
 func TestInstall_DownloadFailures(t *testing.T) {
 	t.Run("non-2xx", func(t *testing.T) {
@@ -435,7 +435,7 @@ func TestInstall_DownloadFailures(t *testing.T) {
 	})
 }
 
-// --- success ----------------------------------------------------------------
+// Success
 
 func TestInstall_Success_EmptyDestination(t *testing.T) {
 	s, tmp := newTestService(t, "1.22.0")
@@ -471,7 +471,7 @@ func assertNoStagingLeftovers(t *testing.T, versionsDir, downloadsDir string) {
 	}
 }
 
-// --- transactional commit ---------------------------------------------------
+// Transactional commit
 
 func TestInstall_ReplacementKeepsOldUntilVerified(t *testing.T) {
 	s, tmp := newTestService(t, "1.22.0")
@@ -731,7 +731,7 @@ func TestInstallRejectsSymlinkPreparedBinaryBeforeCommit(t *testing.T) {
 	}
 }
 
-// --- orphan cleanup ---------------------------------------------------------
+// Orphan cleanup
 
 func TestInstall_OrphanCleanupPreservesRecovery(t *testing.T) {
 	s, tmp := newTestService(t, "1.22.0")

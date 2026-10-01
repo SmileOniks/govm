@@ -69,7 +69,6 @@ func TestDepsTab_CheckStatusClearsAfterDependenciesMsg(t *testing.T) {
 	updated, _ = updated.Update(dependenciesMsg{})
 	m = updated.(Model)
 
-	// Press 'r' to start a check.
 	updated, _ = m.Update(tea.KeyPressMsg{Code: 'r'})
 	m = updated.(Model)
 	if m.deps.phase != depsChecking {
@@ -130,7 +129,6 @@ func TestDepsTab_BackupsPhaseStartsEmpty(t *testing.T) {
 	updated, _ = updated.Update(dependenciesMsg{})
 	m = updated.(Model)
 
-	// Press 'b' to start loading backups.
 	updated, _ = m.Update(tea.KeyPressMsg{Code: 'b'})
 	m = updated.(Model)
 	if m.deps.phase != depsLoadingBackups {

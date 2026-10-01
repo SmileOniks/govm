@@ -61,7 +61,6 @@ type httpDoer interface {
 	Do(*http.Request) (*http.Response, error)
 }
 
-// extractor unpacks archivePath into destination.
 type extractor func(ctx context.Context, archivePath, destination string) error
 
 // commandRunner runs the extracted toolchain's "go version" command

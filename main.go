@@ -22,7 +22,6 @@ import (
 )
 
 func main() {
-	// Check if user is requesting version information
 	if len(os.Args) > 1 && os.Args[1] == "version" {
 		fmt.Printf("govm %s\n", utils.GetVersion())
 		os.Exit(0)

@@ -79,7 +79,7 @@ func (s settingsTab) textInputActive() bool {
 	return s.editingDistributionSource || s.editingDepsBackupLimit
 }
 
-// editingSource reports which input is focused, for the hint bar.
+// editingSource reports whether the distribution-source input is focused, for the hint bar.
 func (s settingsTab) editingSource() bool { return s.editingDistributionSource }
 
 // applyTheme restyles the inputs after a runtime theme change.

@@ -37,8 +37,6 @@ type installAdapter struct {
 	spinRate time.Duration
 }
 
-// buildInstallRequest maps the full utils.GoVersion metadata (including
-// integrity checksum and archive size) onto an install.Request.
 func buildInstallRequest(v utils.GoVersion) install.Request {
 	return install.Request{
 		Version:  v.Version,

@@ -237,7 +237,6 @@ func TestRefreshOnDepsTabTriggersCheckCmd(t *testing.T) {
 	updated, _ = m.Update(dependenciesMsg{})
 	m = updated.(Model)
 
-	// Press 'r' on deps tab
 	updated, cmd := m.Update(tea.KeyPressMsg{Code: 'r'})
 	m = updated.(Model)
 
@@ -369,7 +368,6 @@ func TestPressUOnDepsOpensConfirmDialog(t *testing.T) {
 	updated, _ = m.Update(deps)
 	m = updated.(Model)
 
-	// Press 'u'.
 	updated, _ = m.Update(tea.KeyPressMsg{Code: 'u'})
 	m = updated.(Model)
 	updated, _ = m.Update(coredeps.CheckUpdatesDoneEvent{Dependencies: []coredeps.ModuleDependency(deps)})

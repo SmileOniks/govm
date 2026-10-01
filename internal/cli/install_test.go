@@ -136,7 +136,7 @@ func TestInstallAdapterTypedErrorWithRecoveryPath(t *testing.T) {
 func TestInstallAdapterSpinnerEmitsWhileBlocked(t *testing.T) {
 	release := make(chan struct{})
 	a, buf, tick := newTestAdapter("1.20.5", func(ctx context.Context, req install.Request) (install.Result, error) {
-		<-release // block the worker until the test releases it
+		<-release
 		return install.Result{Version: req.Version}, nil
 	})
 

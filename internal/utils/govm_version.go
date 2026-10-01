@@ -17,23 +17,22 @@ var Version = "dev"
 const Repository = "smileoniks-ctrl/govm"
 
 func GetVersion() string {
-	// First priority: version set by ldflags (GoReleaser)
+	// Version injected at release time via ldflags (GoReleaser).
 	if Version != "dev" {
 		return Version
 	}
 
-	// Second priority: Get from build info
 	bi, ok := debug.ReadBuildInfo()
 	if !ok {
 		return "dev"
 	}
 
-	// Third priority: Check if installed via go install with version
+	// go install records the module version in build info.
 	if bi.Main.Version != "(devel)" && bi.Main.Version != "" {
 		return bi.Main.Version
 	}
 
-	// Fourth priority: Try to get from VCS info
+	// Fall back to VCS metadata from a source checkout.
 	var vcsRevision string
 	var vcsTime time.Time
 
@@ -45,16 +44,14 @@ func GetVersion() string {
 			vcsTime, _ = time.Parse(time.RFC3339, setting.Value)
 		case "vcs.tag":
 			if setting.Value != "" {
-				return setting.Value // Return tag if available
+				return setting.Value
 			}
 		}
 	}
 
-	// Return commit info if available
 	if vcsRevision != "" {
 		return fmt.Sprintf("%s (%s)", vcsRevision[:8], vcsTime.Format("2006-01-02"))
 	}
 
-	// Default fallback
 	return "dev"
 }

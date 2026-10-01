@@ -292,7 +292,6 @@ func TestOverlayDialog_PreservesRowsOutsideDialog(t *testing.T) {
 	stripped := stripANSI(out)
 	strippedLines := strings.Split(stripped, "\n")
 
-	// Find which lines contain dialog content.
 	overwritten := 0
 	for _, l := range strippedLines {
 		if strings.Contains(l, "AAA") || strings.Contains(l, "BBB") || strings.Contains(l, "CCC") {
@@ -303,7 +302,6 @@ func TestOverlayDialog_PreservesRowsOutsideDialog(t *testing.T) {
 		t.Fatalf("overlayDialog overwrote %d background rows with dialog content; expected at most 3:\n%s", overwritten, stripped)
 	}
 
-	// Count the surviving background markers.
 	survivors := 0
 	for _, marker := range []string{
 		"BG_ROW_00", "BG_ROW_01", "BG_ROW_02", "BG_ROW_03", "BG_ROW_04",

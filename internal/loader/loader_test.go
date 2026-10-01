@@ -11,8 +11,6 @@ import (
 	"github.com/smileoniks-ctrl/govm/internal/paths"
 )
 
-// Fake adapters for testing orchestration logic in isolation.
-
 type fakeReleaseSource struct {
 	releases []Release
 	err      error

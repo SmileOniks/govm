@@ -190,9 +190,7 @@ func newUpdateService(confirm func(string, bool) (bool, error)) (*DepsService, *
 	return svc, fx, stdout
 }
 
-// ---------------------------------------------------------------------------
 // One-shot commands: RunList / RunCheck / RunBackups / RunRestore
-// ---------------------------------------------------------------------------
 
 func TestRunListPrintsDependencies(t *testing.T) {
 	stdout := &bytes.Buffer{}
@@ -370,9 +368,7 @@ func TestRunRestoreDeclineCancels(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // RunUpdate driver loop
-// ---------------------------------------------------------------------------
 
 func TestRunUpdateNoDirectUpdates(t *testing.T) {
 	svc, fx, stdout := newUpdateService(func(string, bool) (bool, error) {
@@ -569,9 +565,7 @@ func TestRunUpdateRollbackErrorRecoveryRequired(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // New branches: inconclusive checks, compensation, recovery
-// ---------------------------------------------------------------------------
 
 func TestRunUpdateChecksInconclusivePromptsRollback(t *testing.T) {
 	svc, fx, stdout := newUpdateService(func(string, bool) (bool, error) { return true, nil })
@@ -674,9 +668,7 @@ func TestRunUpdateExecutorError(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // defaultConfirm and NewDepsService wiring
-// ---------------------------------------------------------------------------
 
 func TestDefaultConfirmReadsBufferedAnswersAcrossPrompts(t *testing.T) {
 	stdin := strings.NewReader("y\nn\nn\n")

@@ -360,13 +360,12 @@ func themeLabel(name config.ThemeName) string {
 	return "Current"
 }
 
-// renderHelp produces the one-line hint bar from the keybinding
-// registry: the short-flagged bindings of the active input context
-// (dependency dialog, delete confirmation, or tab) followed by the
-// short global bindings. The overlay and every other hint variant
-// render from the same registry, so the two can never drift apart.
-// renderHelpBar renders the one-line hint bar for the active Input
-// context from the shared key binding registry (ADR-0001).
+// renderHelpBar renders the one-line hint bar from the keybinding
+// registry (ADR-0001): the short-flagged bindings of the active input
+// context (dependency dialog, delete confirmation, or tab) followed
+// by the short global bindings. The overlay and every other hint
+// variant render from the same registry, so the two can never drift
+// apart.
 func renderHelpBar(t styles.Theme, m Model, width int) string {
 	return renderKeyHints(t, shortHints(contextKeyBindings(m, m.inputContext())), width)
 }

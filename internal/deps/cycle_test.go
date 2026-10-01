@@ -38,9 +38,7 @@ func testBackup() *DependencyBackupInfo {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // Initial state
-// ---------------------------------------------------------------------------
 
 func TestNewUpdateCycle_StartsIdle(t *testing.T) {
 	c := NewUpdateCycle()
@@ -56,9 +54,7 @@ func TestNewUpdateCycle_StartsIdle(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // Happy path: UpdatedVerified
-// ---------------------------------------------------------------------------
 
 func TestHappyPath_UpdatedVerified(t *testing.T) {
 	c := NewUpdateCycle()
@@ -178,9 +174,7 @@ func TestRolledBack(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // Failure context preservation
-// ---------------------------------------------------------------------------
 
 func TestFailure_CheckErrorPreserved(t *testing.T) {
 	c := NewUpdateCycle()
@@ -281,9 +275,7 @@ func TestFailure_RecoveryRequired_MissingSnapshot(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // Apply error classification
-// ---------------------------------------------------------------------------
 
 func TestApplyClassification_ErrNilSnapshot_NoCompensation(t *testing.T) {
 	c := driveToApplying(t)
@@ -337,9 +329,7 @@ func TestApplyClassification_SuccessNilBackup_Failed(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // ChecksDone: failed vs inconclusive -> ConfirmRollback
-// ---------------------------------------------------------------------------
 
 func TestChecksDone_Failure_ConfirmRollback(t *testing.T) {
 	c := driveToRunningChecks(t)
@@ -377,9 +367,7 @@ func TestChecksDone_Inconclusive_ConfirmRollback(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // DefaultYes policy
-// ---------------------------------------------------------------------------
 
 func TestDefaultYes_AllConfirmIntents(t *testing.T) {
 	t.Run("confirm-apply", func(t *testing.T) {
@@ -426,9 +414,7 @@ func TestDefaultYes_AllConfirmIntents(t *testing.T) {
 	})
 }
 
-// ---------------------------------------------------------------------------
 // Terminal lifecycle: snapshot and check context cleared
-// ---------------------------------------------------------------------------
 
 func TestTerminalCleanup_AllBranches(t *testing.T) {
 	tests := []struct {
@@ -545,9 +531,7 @@ func TestTerminalCleanup_AllBranches(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // Immutability
-// ---------------------------------------------------------------------------
 
 func TestImmutability_MutatingEventDependenciesDoesNotAffectCycle(t *testing.T) {
 	deps := updatableDeps()
@@ -555,7 +539,6 @@ func TestImmutability_MutatingEventDependenciesDoesNotAffectCycle(t *testing.T) 
 	c, _, _ = c.Handle(StartEvent{ModuleDir: "/mod"})
 	c, _, _ = c.Handle(CheckUpdatesDoneEvent{Dependencies: deps})
 
-	// Mutate the original slice the caller passed in.
 	deps[0].Version = "v9.9.9"
 
 	got := c.Dependencies()
@@ -658,7 +641,6 @@ func TestImmutability_MutatingEventSnapshotDoesNotAffectCycle(t *testing.T) {
 		Dependencies: updatableDeps(),
 	})
 
-	// Mutate the original snapshot the caller passed in.
 	snap.ModFile.Content = "mutated"
 
 	got := c.Snapshot()
@@ -667,9 +649,7 @@ func TestImmutability_MutatingEventSnapshotDoesNotAffectCycle(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // Invalid transitions
-// ---------------------------------------------------------------------------
 
 func TestInvalidTransition_StateUnchanged(t *testing.T) {
 	c := NewUpdateCycle()
@@ -769,9 +749,7 @@ func TestInvalidTransitions_FromEveryPhase(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------------------
 // Drive helpers
-// ---------------------------------------------------------------------------
 
 func driveToConfirmApply(t *testing.T) UpdateCycle {
 	t.Helper()
@@ -838,9 +816,7 @@ func driveToConfirmRollback(t *testing.T) UpdateCycle {
 	return c
 }
 
-// ---------------------------------------------------------------------------
 // Assert helpers
-// ---------------------------------------------------------------------------
 
 func assertNoErr(t *testing.T, err error) {
 	t.Helper()

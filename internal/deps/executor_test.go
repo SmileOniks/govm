@@ -101,7 +101,6 @@ func (m *mockOps) RunChecks(context moduleContext) (DependencyCheckResult, error
 	return DependencyCheckResult{}, nil
 }
 
-// mustExecute runs an operational intent and fails the test on error.
 func mustExecute(t *testing.T, exec *Executor, intent Intent) Event {
 	t.Helper()
 	event, err := exec.Execute(intent)
@@ -579,7 +578,7 @@ func TestEndToEnd_RolledBack(t *testing.T) {
 
 	c, intent = step(t, exec, c, intent) // check
 	c, _, _ = c.Handle(ConfirmApplyEvent{Yes: true})
-	c, intent = stepApply(t, exec, c) // apply
+	c, intent = stepApply(t, exec, c)
 	c, _, _ = c.Handle(ConfirmChecksEvent{Yes: true})
 	c, intent = stepChecks(t, exec, c) // checks fail -> confirm-rollback
 	c, intent, _ = c.Handle(ConfirmRollbackEvent{Yes: true})

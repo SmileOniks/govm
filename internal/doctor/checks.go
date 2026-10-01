@@ -39,7 +39,6 @@ type env struct {
 	// active_version file is absent or invalid.
 	active string
 
-	// source is the distribution source the source Check probes.
 	source string
 }
 

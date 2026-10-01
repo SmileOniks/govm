@@ -79,7 +79,6 @@ func (d catalogItemDelegate) Render(w io.Writer, m list.Model, index int, item l
 		}
 	}
 
-	// Prevent text from exceeding list width.
 	textwidth := m.Width() - s.NormalTitle.GetPaddingLeft() - s.NormalTitle.GetPaddingRight()
 	title = ansi.Truncate(title, textwidth, listEllipsis)
 
