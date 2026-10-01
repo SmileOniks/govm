@@ -160,7 +160,10 @@ func TestMaxInt(t *testing.T) {
 }
 
 func TestRenderHelp_ConfirmsDeleteVariant(t *testing.T) {
-	got := renderHelpBar(testTheme(), Model{CurrentTab: AvailableTab, ConfirmingDelete: true}, 80)
+	m := newVersionCacheTestModel(t)
+	m = applyFilter(t, m, "1.26.0")
+	m = press(t, m, tea.KeyPressMsg{Code: 'd'})
+	got := renderHelpBar(testTheme(), m, 80)
 	if !strings.Contains(stripANSI(got), "confirm") {
 		t.Fatalf("expected confirm hint, got: %s", got)
 	}

@@ -9,7 +9,6 @@ import (
 	"github.com/smileoniks-ctrl/govm/internal/application"
 	"github.com/smileoniks-ctrl/govm/internal/config"
 	"github.com/smileoniks-ctrl/govm/internal/deps"
-	"github.com/smileoniks-ctrl/govm/internal/prune"
 	"github.com/smileoniks-ctrl/govm/internal/styles"
 )
 
@@ -39,22 +38,18 @@ type Model struct {
 	Status StatusLine
 	// ShimPathWarning is the pre-rendered PATH warning captured before
 	// launching the TUI, so View does not resolve PATH on every render.
-	ShimPathWarning  string
-	ConfirmingDelete bool
-	DeleteVersion    string
+	ShimPathWarning           string
+	availableConfirmingDelete bool
+	availableDeleteVersion    string
 	// HelpVisible reports whether the Help overlay (opened with "?")
 	// is showing. While it is open every key except ?, esc, and
 	// ctrl+c is swallowed, so no action fires underneath it.
 	HelpVisible bool
-	// Prune owns the prune flow (phase plus the plan awaiting
-	// confirmation) as the PruneState value-type module.
-	Prune      PruneState
-	DiskUsage  prune.Summary
-	Width      int
-	Height     int
-	TermWidth  int
-	TermHeight int
-	Layout     styles.LayoutMode
+	Width       int
+	Height      int
+	TermWidth   int
+	TermHeight  int
+	Layout      styles.LayoutMode
 
 	// theme is the immutable rendering snapshot used by View and every
 	// renderer. main.go builds it once from settings at startup and
@@ -65,13 +60,11 @@ type Model struct {
 
 	// Settings groups the Settings tab (see ADR-0004); use the entry
 	// points in settings_tab.go.
-	settings settingsTab
-	deps     depsTab
+	settings  settingsTab
+	deps      depsTab
+	installed installedTab
 
 	checkUpgrade checkUpgradeFunc
-	previewPrune previewPruneFunc
-	runPrune     pruneFunc
-	diskUsage    diskUsageFunc
 
 	// upgradeCheck and upgradeNotice implement the Upgrade notice: the
 	// session's single Latest release lookup and the tag it produced
@@ -192,9 +185,7 @@ type VersionOperations struct {
 func (m Model) BindVersionOperations(operations VersionOperations) Model {
 	m.projection.bindOperations(operations)
 	m.checkUpgrade = operations.CheckUpgrade
-	m.previewPrune = operations.PreviewPrune
-	m.runPrune = operations.Prune
-	m.diskUsage = operations.DiskUsage
+	m.installed.bindOperations(operations)
 	return m
 }
 
@@ -209,13 +200,9 @@ func (m Model) BindDeps(executor func(backupLimit int) deps.API) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	var usage tea.Cmd
-	if m.diskUsage != nil {
-		usage = m.diskUsageCmd()
-	}
 	return tea.Batch(
 		m.projection.init(),
-		usage,
+		m.installed.diskUsageCmd(),
 		m.initialUpgradeCheckCmd(),
 		m.Spinner.Tick,
 	)

@@ -8,7 +8,6 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/prune"
 	"github.com/smileoniks-ctrl/govm/internal/styles"
 	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
@@ -55,8 +54,8 @@ func (m Model) View() tea.View {
 		components = append(components, content)
 	case InstalledTab:
 		components = append(components, renderContentCanvas(m.projection.installedView(), width, height))
-		if m.diskUsage != nil {
-			components = append(components, renderInstalledSummary(m.DiskUsage))
+		if summary := m.installed.summaryView(); summary != "" {
+			components = append(components, summary)
 		}
 	case DepsTab:
 		components = append(components, renderContentCanvas(m.deps.view(), width, height))
@@ -83,7 +82,7 @@ func (m Model) View() tea.View {
 	case inputDepsDialog:
 		rendered = overlayDialog(rendered, m.deps.dialogView(t, viewport), viewport)
 	case inputPruneConfirm:
-		rendered = overlayDialog(rendered, renderPruneDialog(t, m.Prune, viewport), viewport)
+		rendered = overlayDialog(rendered, m.installed.dialogView(t, viewport), viewport)
 	}
 	if m.HelpVisible {
 		rendered = overlayDialog(rendered, renderHelpOverlay(t, m, viewport), viewport)
@@ -92,59 +91,6 @@ func (m Model) View() tea.View {
 	v := tea.NewView(rendered)
 	v.AltScreen = true
 	return v
-}
-
-// renderInstalledSummary reports the disk footprint of the managed
-// toolchains.
-//
-// Interrupted downloads are reported only when some exist. A finished
-// install leaves none behind — the archive is streamed to a .part file
-// that is removed on success, on failure, and again by the next
-// install's orphan sweep — so a permanent field would read "0 B" in
-// every situation a user can observe, and say nothing about the one
-// situation that matters: a crash left debris on disk.
-func renderInstalledSummary(summary prune.Summary) string {
-	line := fmt.Sprintf(
-		"Installed: %s  Reclaimable: %s",
-		prune.FormatBytes(summary.InstalledBytes),
-		prune.FormatBytes(summary.ReclaimableBytes),
-	)
-	if summary.DownloadBytes > 0 {
-		line += fmt.Sprintf("  Interrupted: %s", prune.FormatBytes(summary.DownloadBytes))
-	}
-	return line
-}
-
-// renderPruneDialog draws the prune confirmation as a Dialog: the
-// shared warning title, the plan, and the Yes/No buttons, in the same
-// box as the Deps dialogs.
-func renderPruneDialog(t styles.Theme, state PruneState, viewport viewportSize) string {
-	result := state.Plan()
-	lines := []string{
-		t.DialogTitleStyle.Render(t.DialogWarningStyle.Render("⚠ Prune inactive Go versions?")),
-		"",
-		t.DialogBodyStyle.Render(fmt.Sprintf("Candidates: %d", len(result.Candidates))),
-		t.DialogBodyStyle.Render(fmt.Sprintf("Reclaimable: %s", prune.FormatBytes(pruneCandidateBytes(result)))),
-		"",
-	}
-	visible := result.Candidates
-	extra := 0
-	if len(visible) > maxDependencyListLines {
-		extra = len(visible) - maxDependencyListLines
-		visible = visible[:maxDependencyListLines]
-	}
-	for _, candidate := range visible {
-		label := candidate.Version
-		if label == "" {
-			label = candidate.Path
-		}
-		lines = append(lines, t.DialogBodyStyle.Render(fmt.Sprintf("  %s  %s", label, prune.FormatBytes(candidate.Bytes))))
-	}
-	if extra > 0 {
-		lines = append(lines, t.DialogBodyStyle.Render(fmt.Sprintf("  …and %d more", extra)))
-	}
-	lines = append(lines, "", renderYesNoButtons(t, state.ChoiceYes(), "Yes", "No"))
-	return renderDialog(t, lipgloss.JoinVertical(lipgloss.Left, lines...), false, viewport)
 }
 
 func renderMinimumViewport(t styles.Theme, width, height int) string {

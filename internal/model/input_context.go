@@ -82,9 +82,9 @@ func (m *Model) resolveInputContext(helpVisible bool) inputContext {
 		return inputHelpOverlay
 	case m.deps.dialogActive():
 		return inputDepsDialog
-	case m.Prune.Confirming():
-		return inputPruneConfirm
-	case m.ConfirmingDelete:
+	case m.CurrentTab == InstalledTab:
+		return m.installed.inputContext()
+	case m.CurrentTab == AvailableTab && m.availableConfirmingDelete:
 		return inputDeleteConfirm
 	case m.filterInputActive():
 		return inputFilter

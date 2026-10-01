@@ -144,6 +144,7 @@ The TUI header shows the GoVM version so you always know which build is running.
 | `space` | Mark / unmark the dependency under the cursor for the next update (Deps tab) |
 | `a` | Mark every listed dependency, or clear all marks when any is marked (Deps tab) |
 | `d` | Delete the selected installed version with confirmation (Available/Installed tabs) |
+| `p` | Preview pruning inactive toolchains and interrupted downloads, then confirm in a dialog (Installed tab) |
 | `r` | Refresh the Go version catalog (Available/Installed tabs) or check for dependency updates online (Deps tab) |
 | `f` | Find in the Available list: type to narrow it live with fuzzy matching, `enter` to apply, `esc` to clear |
 | `b` | List saved dependency backups and choose one to restore (Deps tab) |
@@ -154,11 +155,13 @@ The TUI header shows the GoVM version so you always know which build is running.
 
 When deleting a version, you will be prompted to confirm with `y` or cancel with `n`. The active version cannot be deleted.
 
+The Installed tab shows per-version disk usage and an Installed/Reclaimable summary; Interrupted appears only when unfinished downloads occupy space. Prune defaults to Yes but executes only after confirmation. Leaving Installed while its preview is being prepared discards that preview; an already confirmed prune continues across tab switches and refreshes the catalog and disk summary once it finishes. A second prune and individual deletion stay blocked until that prune finishes. Leaving either catalog tab cancels its pending inline delete confirmation.
+
 Install progress continues across tab switches, and refreshing the catalog does not cancel an installation. Additional install, use, and delete actions are ignored while a version operation is running or its result is being verified. Confirming a deletion rechecks the current catalog: a version that disappeared, is no longer installed, or became active will not be deleted.
 
 While the filter input is open, every key you type goes into it — including `q` and `?` — so commands, help, and quit are suspended until you press `enter` (apply) or `esc` (clear the filter). `ctrl+c` still quits, and `Tab`/`Shift+Tab` still switch tabs; the filter survives the round trip. An applied filter shows an indicator line (`find: "1.2" · 12/100 · esc clear`) above the list, and commands then act on the filtered selection. Filtering is unavailable while a delete or prune confirmation is pending.
 
-Confirmation dialogs (for dependency updates, post-update checks, and rollback) use the following keys:
+Confirmation dialogs (for prune, dependency updates, post-update checks, and rollback) use the following keys:
 
 | Key | Action |
 |---|---|
@@ -211,7 +214,7 @@ The **Deps** tab in the TUI displays the Go module dependencies of the current w
 | Latest | Latest available version (after refresh) |
 | Status | `current`, `update avail`, `indirect`, `indirect update`, `deprecated`, or `error` |
 
-The Deps table mirrors the data in the **Installed** tab, which shows three columns: **Version**, **Path**, and **Status** (where Status is `active` for the version currently wired through the shim).
+The **Installed** tab shows **Version**, **Path**, **Size**, and **Status** (where Status is `active` for the version currently wired through the shim).
 
 #### Refreshing and updating dependencies
 

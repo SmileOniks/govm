@@ -298,6 +298,12 @@ func TestPruneRefreshPreservesOwnStatus(t *testing.T) {
 			seedVersions(t, &m, []utils.GoVersion{{Version: "1.24.4", Installed: true, Path: "/go/1.24.4"}})
 			loads, usageCalls := 0, 0
 			m = m.BindVersionOperations(VersionOperations{
+				PreviewPrune: func(context.Context) (prune.Result, error) {
+					return prune.Result{Candidates: []prune.Candidate{{Version: "1.24.4", Bytes: 1024}}}, nil
+				},
+				Prune: func(context.Context) (prune.Result, error) {
+					return prune.Result{Removed: []prune.Candidate{{Version: "1.24.4", Bytes: 1024}}}, tt.err
+				},
 				LoadCatalog: func(context.Context) ([]utils.GoVersion, error) {
 					loads++
 					return []utils.GoVersion{{Version: "1.24.4"}}, nil
@@ -307,11 +313,17 @@ func TestPruneRefreshPreservesOwnStatus(t *testing.T) {
 					return prune.Summary{}, nil
 				},
 			})
-			updated, cmd := m.Update(pruneDoneMsg{
-				Result: prune.Result{Removed: []prune.Candidate{{Version: "1.24.4", Bytes: 1024}}},
-				Err:    tt.err,
-			})
-			m = settleCmd(t, updated.(Model), cmd)
+			m = press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
+			updated, preview := m.Update(tea.KeyPressMsg{Code: 'p'})
+			if preview == nil {
+				t.Fatal("missing prune preview command")
+			}
+			m = runCatalogTestCmd(t, updated.(Model), preview)
+			updated, run := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+			if run == nil {
+				t.Fatal("missing confirmed prune command")
+			}
+			m = runCatalogTestCmd(t, updated.(Model), run)
 			if !strings.HasPrefix(m.Status.Text(), tt.want) || m.Status.Scope() != statusScopeGlobal {
 				t.Fatalf("prune status = %q, scope=%v", m.Status.Text(), m.Status.Scope())
 			}
@@ -617,4 +629,43 @@ func TestCatalogFlowLoadAdmission(t *testing.T) {
 			t.Fatal("verification did not release mutation admission")
 		}
 	})
+}
+
+func TestInstalledTabCatalogDeleteConfirmationUsesActionTab(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		target int
+		other  int
+	}{
+		{name: "Installed from Available", target: InstalledTab, other: AvailableTab},
+		{name: "Available from Installed", target: AvailableTab, other: InstalledTab},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			m := newVersionCacheTestModel(t)
+			var deleted string
+			m = m.BindVersionOperations(VersionOperations{Delete: func(_ context.Context, version string) (lifecycle.DeletionResult, error) {
+				deleted = version
+				return lifecycle.DeletionResult{Version: version}, nil
+			}})
+			m.CurrentTab = tt.other
+			cmd := m.applyCatalog(catalogActionMsg{kind: catalogActionRequestDelete, version: "1.26.0", tab: tt.target})
+			if cmd != nil || m.inputContext() == inputDeleteConfirm {
+				t.Fatal("confirmation was addressed to the active tab instead of the action tab")
+			}
+			// Change only the presentation context: tab-switch teardown would cancel the request.
+			m.CurrentTab = tt.target
+			if m.inputContext() != inputDeleteConfirm || !strings.Contains(m.Status.Text(), "delete Go 1.26.0?") {
+				t.Fatalf("action tab confirmation: context=%v status=%q", m.inputContext(), m.Status.Text())
+			}
+			updated, cmd := m.Update(tea.KeyPressMsg{Code: 'Y'})
+			m = runCatalogTestCmd(t, updated.(Model), cmd)
+			if deleted != "1.26.0" || m.inputContext() == inputDeleteConfirm {
+				t.Fatalf("confirmation target=%q, context=%v", deleted, m.inputContext())
+			}
+			m.CurrentTab = tt.other
+			if m.inputContext() == inputDeleteConfirm {
+				t.Fatal("confirmation leaked to the other catalog tab")
+			}
+		})
+	}
 }

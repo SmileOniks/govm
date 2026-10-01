@@ -23,13 +23,15 @@ type pruneFunc func(context.Context) (prune.Result, error)
 type diskUsageFunc func(context.Context) (prune.Summary, error)
 
 type prunePreviewMsg struct {
-	Result prune.Result
-	Err    error
+	RequestID uint64
+	Result    prune.Result
+	Err       error
 }
 
 type pruneDoneMsg struct {
-	Result prune.Result
-	Err    error
+	RequestID uint64
+	Result    prune.Result
+	Err       error
 }
 
 type diskUsageMsg struct {
@@ -37,38 +39,41 @@ type diskUsageMsg struct {
 	Err     error
 }
 
-func (m Model) previewPruneCmd() tea.Cmd {
+func (s *installedTab) previewPruneCmd(requestID uint64) tea.Cmd {
+	preview := s.previewPrune
 	return func() tea.Msg {
-		if m.previewPrune == nil {
-			return prunePreviewMsg{Err: errors.New("no prune service configured")}
+		if preview == nil {
+			return prunePreviewMsg{RequestID: requestID, Err: errors.New("no prune service configured")}
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), prunePreviewTimeout)
 		defer cancel()
-		result, err := m.previewPrune(ctx)
-		return prunePreviewMsg{Result: result, Err: err}
+		result, err := preview(ctx)
+		return prunePreviewMsg{RequestID: requestID, Result: result, Err: err}
 	}
 }
 
-func (m Model) pruneCmd() tea.Cmd {
+func (s *installedTab) pruneCmd(requestID uint64) tea.Cmd {
+	run := s.runPrune
 	return func() tea.Msg {
-		if m.runPrune == nil {
-			return pruneDoneMsg{Err: errors.New("no prune service configured")}
+		if run == nil {
+			return pruneDoneMsg{RequestID: requestID, Err: errors.New("no prune service configured")}
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), pruneTimeout)
 		defer cancel()
-		result, err := m.runPrune(ctx)
-		return pruneDoneMsg{Result: result, Err: err}
+		result, err := run(ctx)
+		return pruneDoneMsg{RequestID: requestID, Result: result, Err: err}
 	}
 }
 
-func (m Model) diskUsageCmd() tea.Cmd {
-	if m.diskUsage == nil {
+func (s *installedTab) diskUsageCmd() tea.Cmd {
+	usage := s.diskUsage
+	if usage == nil {
 		return nil
 	}
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), diskUsageTimeout)
 		defer cancel()
-		summary, err := m.diskUsage(ctx)
+		summary, err := usage(ctx)
 		return diskUsageMsg{Summary: summary, Err: err}
 	}
 }

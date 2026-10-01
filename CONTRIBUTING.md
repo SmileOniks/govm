@@ -24,6 +24,16 @@ admission rules: do not replace them with a single busy guard. Exercise changes
 through keys/messages and the existing `VersionOperations` adapters, including
 late results and tab navigation during installation.
 
+The Installed tab is a private module (`installedTab`, ADR-0004). Its
+`update(msg) (tea.Cmd, installedStatus)` entry owns prune admission, confirmation
+dialog, inline delete target, teardown, and disk summary. Model routes input and
+results and applies status, navigation, and catalog effects; the shared projection
+still owns the table, version mutations, and delete revalidation. Preview/run
+results carry a prune request ID distinct from catalog operation IDs: leaving
+Installed invalidates an unconfirmed preview, while a confirmed run survives and
+accepts completion exactly once, even on another tab or under Help. Test through
+keys and emitted command results, not the module's private state.
+
 ## Report an Issue
 
 If you have run into a bug or want to discuss a new feature, please [file an issue](https://github.com/smileoniks-ctrl/govm/issues).

@@ -1,12 +1,9 @@
 package model
 
 import (
-	"fmt"
-
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/prune"
 	"github.com/smileoniks-ctrl/govm/internal/styles"
 )
 
@@ -37,6 +34,9 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if isDepsMsg(msg) {
 		return m.delegateDeps(msg)
 	}
+	if isInstalledMsg(msg) {
+		return m.delegateInstalled(msg)
+	}
 
 	switch msg := msg.(type) {
 	case tea.KeyPressMsg:
@@ -63,7 +63,11 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m.delegateDeps(msg)
 		case inputPruneConfirm:
-			return m.handlePruneDialogKey(msg)
+			switch msg.String() {
+			case "ctrl+c", "q":
+				return m, tea.Quit
+			}
+			return m.delegateInstalled(msg)
 		}
 		return m.handleKey(msg)
 
@@ -92,7 +96,7 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case catalogLoadedMsg:
 		cmd := m.applyCatalog(msg)
-		usage := m.applyCatalog(catalogDiskUsageMsg{sizes: m.DiskUsage.VersionBytes})
+		_, usage := m.delegateInstalled(msg)
 		return m, tea.Batch(cmd, usage)
 
 	case catalogLoadFailedMsg:
@@ -107,44 +111,6 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case upgradeCheckedMsg:
 		m.handleUpgradeChecked(msg)
 		return m, nil
-
-	case diskUsageMsg:
-		m.DiskUsage = msg.Summary
-		cmd := m.applyCatalog(catalogDiskUsageMsg{sizes: msg.Summary.VersionBytes})
-		if msg.Err != nil {
-			m.Status.SetTab(fmt.Sprintf("Disk usage unavailable: %v", msg.Err), "warning")
-		} else if len(msg.Summary.Warnings) > 0 {
-			m.Status.SetTab("Disk usage is approximate; some files could not be inspected.", "warning")
-		}
-		return m, cmd
-
-	case prunePreviewMsg:
-		if !m.Prune.AcceptPreview(msg.Result) {
-			if msg.Err != nil {
-				m.Status.SetTab(fmt.Sprintf("Prune unavailable: %v", msg.Err), "error")
-			} else {
-				m.Status.SetTab("Nothing to prune.", "info")
-			}
-			return m, nil
-		}
-		if msg.Err != nil {
-			m.Status.SetTab(fmt.Sprintf("Prune has warnings: %v", msg.Err), "warning")
-		} else {
-			m.Status.SetTab("Review the prune plan and press Y to confirm.", "warning")
-		}
-		return m, nil
-
-	case pruneDoneMsg:
-		m.Prune.Finish()
-		if msg.Err != nil {
-			m.Status.SetGlobal(fmt.Sprintf("Prune completed with warnings: %v", msg.Err), "warning")
-		} else {
-			m.Status.SetGlobal(
-				fmt.Sprintf("Pruned %d object(s), freed %s.", len(msg.Result.Removed), formatDiskUsage(pruneResultBytes(msg.Result))),
-				"success",
-			)
-		}
-		return m, tea.Batch(m.applyCatalog(catalogRefreshMsg{}), m.diskUsageCmd())
 
 	case list.FilterMatchesMsg:
 		return m, m.projection.updateAvailable(msg)
@@ -168,22 +134,4 @@ func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.applyDepsStatus(depsStatus)
 	cmds = append(cmds, depsCmd)
 	return m, tea.Batch(cmds...)
-}
-
-func pruneResultBytes(result prune.Result) int64 {
-	var total int64
-	for _, candidate := range result.Removed {
-		total += candidate.Bytes
-	}
-	return total
-}
-
-// pruneCandidateBytes sums the plan awaiting confirmation. The plan
-// carries Candidates only; Removed is filled in by the run.
-func pruneCandidateBytes(result prune.Result) int64 {
-	var total int64
-	for _, candidate := range result.Candidates {
-		total += candidate.Bytes
-	}
-	return total
 }

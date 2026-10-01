@@ -3,12 +3,14 @@ package model
 import (
 	"context"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 	coredeps "github.com/smileoniks-ctrl/govm/internal/deps"
 	"github.com/smileoniks-ctrl/govm/internal/install"
+	"github.com/smileoniks-ctrl/govm/internal/lifecycle"
 	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
 
@@ -124,21 +126,28 @@ func TestHandleShiftTabKeyClearsScreenWhenSwitchingToSettings(t *testing.T) {
 // not just for Tab but for the reverse direction too.
 func TestShiftTabCancelsPendingDelete(t *testing.T) {
 	m := newTestModel(t)
-	m.CurrentTab = InstalledTab
-	m.ConfirmingDelete = true
-	m.DeleteVersion = "1.24.4"
-
-	updated, _ := m.handleShiftTabKey()
-	m = *updated.(*Model)
-
-	if m.ConfirmingDelete {
-		t.Fatal("expected pending delete confirmation to be cancelled on reverse tab switch")
+	deletes := 0
+	m = m.BindVersionOperations(VersionOperations{Delete: func(_ context.Context, version string) (lifecycle.DeletionResult, error) {
+		deletes++
+		return lifecycle.DeletionResult{Version: version}, nil
+	}})
+	seedVersions(t, &m, []utils.GoVersion{{Version: "1.24.4", Installed: true, Path: "/p/1.24.4"}})
+	m = press(t, m, tea.KeyPressMsg{Code: tea.KeyTab}, tea.KeyPressMsg{Code: 'd'})
+	if m.inputContext() != inputDeleteConfirm {
+		t.Fatal("expected pending Installed delete confirmation")
 	}
-	if m.DeleteVersion != "" {
-		t.Fatalf("expected delete version cleared, got %q", m.DeleteVersion)
+	m = press(t, m, shiftTab())
+	if m.inputContext() == inputDeleteConfirm {
+		t.Fatal("expected pending delete confirmation to be cancelled on reverse tab switch")
 	}
 	if got, want := m.CurrentTab, AvailableTab; got != want {
 		t.Fatalf("current tab = %d, want %d (reverse of Installed)", got, want)
+	}
+	m = press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
+	updated, cmd := m.Update(tea.KeyPressMsg{Code: 'y'})
+	m = runCatalogTestCmd(t, updated.(Model), cmd)
+	if deletes != 0 || m.inputContext() == inputDeleteConfirm {
+		t.Fatal("returning to Installed must not restore the cancelled deletion")
 	}
 }
 
@@ -210,6 +219,11 @@ func TestInstalledTabArrowKeysMoveTableCursor(t *testing.T) {
 
 func TestInstalledTabDeleteUsesTableSelection(t *testing.T) {
 	m := newTestModel(t)
+	var deleted string
+	m = m.BindVersionOperations(VersionOperations{Delete: func(_ context.Context, version string) (lifecycle.DeletionResult, error) {
+		deleted = version
+		return lifecycle.DeletionResult{Version: version}, nil
+	}})
 	m.CurrentTab = InstalledTab
 	seedVersions(t, &m, []utils.GoVersion{
 		{Version: "1.24.4", Installed: true, Path: "/p/1.24.4"},
@@ -219,11 +233,15 @@ func TestInstalledTabDeleteUsesTableSelection(t *testing.T) {
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'd'})
 	got := updated.(Model)
-	if !got.ConfirmingDelete {
-		t.Fatal("expected delete confirmation")
+	if got.inputContext() != inputDeleteConfirm || !strings.Contains(got.Status.Text(), "delete Go 1.25.0?") {
+		t.Fatalf("delete prompt = %q, context=%v", got.Status.Text(), got.inputContext())
 	}
-	if got.DeleteVersion != "1.25.0" {
-		t.Fatalf("delete version = %q, want 1.25.0", got.DeleteVersion)
+	// Navigation remains available, but confirmation must retain its original target.
+	got = press(t, got, tea.KeyPressMsg{Code: tea.KeyUp})
+	updated, cmd := got.Update(tea.KeyPressMsg{Code: 'y'})
+	got = runCatalogTestCmd(t, updated.(Model), cmd)
+	if deleted != "1.25.0" || got.inputContext() == inputDeleteConfirm {
+		t.Fatalf("confirmed delete target=%q, context=%v", deleted, got.inputContext())
 	}
 }
 

@@ -1,12 +1,13 @@
 package model
 
 import (
+	"context"
 	"regexp"
 	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/prune"
+	"github.com/smileoniks-ctrl/govm/internal/lifecycle"
 	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
 
@@ -129,8 +130,8 @@ func TestFilterInputCapturesCommandKeys(t *testing.T) {
 	if m.HelpVisible {
 		t.Fatal("? must not open the Help overlay while the filter input has focus")
 	}
-	if m.ConfirmingDelete {
-		t.Fatal("y/n must not confirm a delete while the filter input has focus")
+	if m.inputContext() != inputFilter {
+		t.Fatal("command keys must leave the filter input in control")
 	}
 }
 
@@ -167,6 +168,11 @@ func TestFilterTypingNarrowsAndEnterCommits(t *testing.T) {
 
 func TestFilterCommandsWorkAfterCommit(t *testing.T) {
 	m := newTestModel(t)
+	var deleted string
+	m = m.BindVersionOperations(VersionOperations{Delete: func(_ context.Context, version string) (lifecycle.DeletionResult, error) {
+		deleted = version
+		return lifecycle.DeletionResult{Version: version}, nil
+	}})
 	seedVersions(t, &m, []utils.GoVersion{
 		{Version: "1.24.4", Installed: true, Active: true, Path: "/p/1.24.4"},
 		{Version: "1.25.0", Installed: true, Path: "/p/1.25.0"},
@@ -176,11 +182,13 @@ func TestFilterCommandsWorkAfterCommit(t *testing.T) {
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'd'})
 	m = updated.(Model)
 
-	if !m.ConfirmingDelete {
-		t.Fatal("expected 'd' to act on the filtered selection after commit")
+	if m.inputContext() != inputDeleteConfirm || !strings.Contains(m.Status.Text(), "delete Go 1.25.0?") {
+		t.Fatalf("filtered delete prompt = %q, context=%v", m.Status.Text(), m.inputContext())
 	}
-	if m.DeleteVersion != "1.25.0" {
-		t.Fatalf("delete version = %q, want 1.25.0", m.DeleteVersion)
+	updated, cmd := m.Update(tea.KeyPressMsg{Code: 'y'})
+	m = runCatalogTestCmd(t, updated.(Model), cmd)
+	if deleted != "1.25.0" || m.inputContext() == inputDeleteConfirm {
+		t.Fatalf("filtered deletion target=%q, context=%v", deleted, m.inputContext())
 	}
 }
 
@@ -264,8 +272,10 @@ func TestFindKeyBlockedDuringDeleteConfirmation(t *testing.T) {
 	seedVersions(t, &m, []utils.GoVersion{
 		{Version: "1.24.4", Installed: true, Path: "/p/1.24.4"},
 	})
-	m.ConfirmingDelete = true
-	m.DeleteVersion = "1.24.4"
+	m = press(t, m, tea.KeyPressMsg{Code: 'd'})
+	if m.inputContext() != inputDeleteConfirm {
+		t.Fatal("expected delete confirmation before pressing f")
+	}
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'f'})
 	m = updated.(Model)
@@ -280,15 +290,17 @@ func TestFindKeyBlockedDuringPruneConfirmation(t *testing.T) {
 	seedVersions(t, &m, []utils.GoVersion{
 		{Version: "1.24.4", Installed: true, Path: "/p/1.24.4"},
 	})
-	if !m.Prune.BeginPreview() || !m.Prune.AcceptPreview(prune.Result{Candidates: []prune.Candidate{{Version: "1.24.4"}}}) {
-		t.Fatal("failed to stage a prune confirmation")
-	}
+	m = press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
+	confirmPrune(t, &m)
 
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'f'})
 	m = updated.(Model)
 
 	if m.projection.availableSettingFilter() {
 		t.Fatal("expected 'f' to be inert while a prune confirmation is pending")
+	}
+	if m.inputContext() != inputPruneConfirm || m.CurrentTab != InstalledTab {
+		t.Fatal("f must leave the Installed prune dialog in control")
 	}
 }
 

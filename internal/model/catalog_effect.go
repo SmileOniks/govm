@@ -364,14 +364,6 @@ func verifyingStatus(operation catalogOperation) string {
 }
 
 func (m *Model) applyCatalogStatus(status catalogStatus) {
-	if status.clearDeleteConfirmation {
-		m.ConfirmingDelete = false
-		m.DeleteVersion = ""
-	}
-	if status.confirmDeleteVersion != "" {
-		m.ConfirmingDelete = true
-		m.DeleteVersion = status.confirmDeleteVersion
-	}
 	switch status.scope {
 	case catalogStatusTab:
 		m.Status.SetTab(status.text, status.kind)
@@ -385,9 +377,25 @@ func (m *Model) applyCatalogStatus(status catalogStatus) {
 
 func (m *Model) applyCatalog(msg tea.Msg) tea.Cmd {
 	cmd, status := m.projection.apply(msg)
+	if action, ok := msg.(catalogActionMsg); ok && (status.clearDeleteConfirmation || status.confirmDeleteVersion != "") {
+		switch action.tab {
+		case InstalledTab:
+			m.installed.update(installedDeleteConfirmationMsg{
+				version: status.confirmDeleteVersion, clear: status.clearDeleteConfirmation,
+			})
+		case AvailableTab:
+			if status.clearDeleteConfirmation {
+				m.clearDeleteContext()
+			}
+			if status.confirmDeleteVersion != "" {
+				m.availableConfirmingDelete = true
+				m.availableDeleteVersion = status.confirmDeleteVersion
+			}
+		}
+	}
 	m.applyCatalogStatus(status)
 	if status.refreshDiskUsage {
-		return tea.Batch(cmd, m.diskUsageCmd())
+		return tea.Batch(cmd, m.installed.diskUsageCmd())
 	}
 	return cmd
 }

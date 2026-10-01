@@ -230,7 +230,7 @@ func TestCatalogFlowRefreshDuringMutation(t *testing.T) {
 			for _, key := range []rune{'i', 'u', 'd'} {
 				updated, cmd := m.Update(tea.KeyPressMsg{Code: key, Text: string(key)})
 				m = updated.(Model)
-				if cmd != nil || m.ConfirmingDelete {
+				if cmd != nil || m.inputContext() == inputDeleteConfirm {
 					t.Fatalf("%c dispatched while installing", key)
 				}
 			}
@@ -606,99 +606,124 @@ func TestCatalogProjectionAdapterProgressLifetime(t *testing.T) {
 }
 
 func TestCatalogFlowDeleteRevalidatesConfirmation(t *testing.T) {
-	for _, tt := range []struct {
-		name     string
-		snapshot []utils.GoVersion
-		kind     string
-		text     string
-		calls    int
-	}{
-		{name: "removed", snapshot: installedSnapshot("1.24.4"), kind: "error", text: "no longer available"},
-		{name: "uninstalled", snapshot: []utils.GoVersion{{Version: "1.26.0"}}, kind: "info", text: "no longer installed"},
-		{name: "became active", snapshot: []utils.GoVersion{{Version: "1.26.0", Installed: true, Active: true, Path: "/p/1.26.0"}}, kind: "error", text: "Cannot delete active"},
-		{name: "still deletable", snapshot: installedSnapshot("1.26.0"), kind: "success", text: "Successfully deleted", calls: 1},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			m := applyFilter(t, newVersionCacheTestModel(t), "1.26.0")
-			deletes := 0
-			m = m.BindVersionOperations(VersionOperations{
-				LoadCatalog: func(context.Context) ([]utils.GoVersion, error) { return tt.snapshot, nil },
-				Delete: func(_ context.Context, version string) (lifecycle.DeletionResult, error) {
-					deletes++
-					if version != "1.26.0" {
-						t.Errorf("deleted identity=%q", version)
-					}
-					return lifecycle.DeletionResult{Version: version}, nil
-				},
-			})
-			updated, cmd := m.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
-			m = updated.(Model)
-			if cmd != nil || !m.ConfirmingDelete || m.DeleteVersion != "1.26.0" || m.Status.Kind() != "warning" {
-				t.Fatalf("delete request: confirmation=%v target=%q status=%q", m.ConfirmingDelete, m.DeleteVersion, m.Status.Text())
-			}
-			updated, refresh := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
-			m = updated.(Model)
-			if refresh == nil {
-				t.Fatal("confirmation blocked refresh")
-			}
-			snapshot := refresh()
-			updated, cmd = m.Update(tea.KeyPressMsg{Code: 'Y', Text: "Y"})
-			m = updated.(Model)
-			if cmd != nil || !m.ConfirmingDelete || m.DeleteVersion != "1.26.0" || deletes != 0 {
-				t.Fatal("Y dispatched or closed confirmation while refresh was pending")
-			}
-			updated, refilter := m.Update(snapshot)
-			m = runCatalogTestCmd(t, updated.(Model), refilter)
-			updated, cmd = m.Update(tea.KeyPressMsg{Code: 'Y', Text: "Y"})
-			m = runCatalogTestCmd(t, updated.(Model), cmd)
-			if m.ConfirmingDelete || m.DeleteVersion != "" || deletes != tt.calls {
-				t.Fatalf("after confirmation: open=%v target=%q calls=%d", m.ConfirmingDelete, m.DeleteVersion, deletes)
-			}
-			wantScope := statusScopeTab
-			if tt.calls != 0 {
-				wantScope = statusScopeGlobal
-			}
-			if m.Status.Kind() != tt.kind || !strings.Contains(m.Status.Text(), tt.text) || m.Status.Scope() != wantScope {
-				t.Fatalf("confirmation status=%q kind=%q scope=%v", m.Status.Text(), m.Status.Kind(), m.Status.Scope())
-			}
-			if tt.calls != 0 {
-				if v, _ := m.projection.lookup("1.26.0"); v.Installed {
-					t.Fatal("confirmed deletion did not publish")
-				}
-			}
-			assertVersionViewsConsistent(t, m)
-		})
-	}
-	for _, tt := range []struct {
+	for _, tab := range []struct {
 		name string
-		key  tea.KeyPressMsg
+		id   int
 	}{
-		{name: "cancel", key: tea.KeyPressMsg{Code: 'N', Text: "N"}},
-		{name: "tab switch", key: tea.KeyPressMsg{Code: tea.KeyTab}},
+		{name: "Available", id: AvailableTab},
+		{name: "Installed", id: InstalledTab},
 	} {
-		t.Run(tt.name, func(t *testing.T) {
-			m := applyFilter(t, newVersionCacheTestModel(t), "1.26.0")
-			deletes := 0
-			m = m.BindVersionOperations(VersionOperations{Delete: func(_ context.Context, version string) (lifecycle.DeletionResult, error) {
-				deletes++
-				return lifecycle.DeletionResult{Version: version}, nil
-			}})
-			updated, cmd := m.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
-			m = updated.(Model)
-			if cmd != nil || !m.ConfirmingDelete {
-				t.Fatal("missing confirmation")
+		t.Run(tab.name, func(t *testing.T) {
+			selectTarget := func(t *testing.T, m Model) Model {
+				t.Helper()
+				if tab.id == AvailableTab {
+					return applyFilter(t, m, "1.26.0")
+				}
+				m = press(t, m, tea.KeyPressMsg{Code: tea.KeyTab})
+				setInstalledCursor(&m, 1)
+				return m
 			}
-			updated, cmd = m.Update(tt.key)
-			m = runCatalogTestCmd(t, updated.(Model), cmd)
-			updated, cmd = m.Update(tea.KeyPressMsg{Code: 'Y', Text: "Y"})
-			m = runCatalogTestCmd(t, updated.(Model), cmd)
-			if m.ConfirmingDelete || m.DeleteVersion != "" || deletes != 0 {
-				t.Fatal("cancelled confirmation dispatched deletion")
+			for _, tt := range []struct {
+				name     string
+				snapshot []utils.GoVersion
+				kind     string
+				text     string
+				calls    int
+			}{
+				{name: "removed", snapshot: installedSnapshot("1.24.4"), kind: "error", text: "no longer available"},
+				{name: "uninstalled", snapshot: []utils.GoVersion{{Version: "1.26.0"}}, kind: "info", text: "no longer installed"},
+				{name: "became active", snapshot: []utils.GoVersion{{Version: "1.26.0", Installed: true, Active: true, Path: "/p/1.26.0"}}, kind: "error", text: "Cannot delete active"},
+				{name: "still deletable", snapshot: installedSnapshot("1.26.0"), kind: "success", text: "Successfully deleted", calls: 1},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					m := newVersionCacheTestModel(t)
+					var deleted []string
+					m = m.BindVersionOperations(VersionOperations{
+						LoadCatalog: func(context.Context) ([]utils.GoVersion, error) { return tt.snapshot, nil },
+						Delete: func(_ context.Context, version string) (lifecycle.DeletionResult, error) {
+							deleted = append(deleted, version)
+							return lifecycle.DeletionResult{Version: version}, nil
+						},
+					})
+					m = selectTarget(t, m)
+					updated, cmd := m.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
+					m = updated.(Model)
+					if cmd != nil || m.inputContext() != inputDeleteConfirm || !strings.Contains(m.Status.Text(), "delete Go 1.26.0?") || m.Status.Kind() != "warning" {
+						t.Fatalf("delete request: context=%v status=%q", m.inputContext(), m.Status.Text())
+					}
+					updated, refresh := m.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+					m = updated.(Model)
+					if refresh == nil {
+						t.Fatal("confirmation blocked refresh")
+					}
+					snapshot := refresh()
+					updated, cmd = m.Update(tea.KeyPressMsg{Code: 'Y', Text: "Y"})
+					m = updated.(Model)
+					if cmd != nil || m.inputContext() != inputDeleteConfirm || len(deleted) != 0 {
+						t.Fatal("Y dispatched or closed confirmation while refresh was pending")
+					}
+					updated, refilter := m.Update(snapshot)
+					m = runCatalogTestCmd(t, updated.(Model), refilter)
+					updated, cmd = m.Update(tea.KeyPressMsg{Code: 'Y', Text: "Y"})
+					m = runCatalogTestCmd(t, updated.(Model), cmd)
+					if m.inputContext() == inputDeleteConfirm || len(deleted) != tt.calls {
+						t.Fatalf("after confirmation: context=%v targets=%v", m.inputContext(), deleted)
+					}
+					wantScope := statusScopeTab
+					if tt.calls != 0 {
+						wantScope = statusScopeGlobal
+						if deleted[0] != "1.26.0" {
+							t.Fatalf("deleted identity=%q, want retained confirmation target", deleted[0])
+						}
+					}
+					if m.Status.Kind() != tt.kind || !strings.Contains(m.Status.Text(), tt.text) || m.Status.Scope() != wantScope {
+						t.Fatalf("confirmation status=%q kind=%q scope=%v", m.Status.Text(), m.Status.Kind(), m.Status.Scope())
+					}
+					if tt.calls != 0 {
+						if v, _ := m.projection.lookup("1.26.0"); v.Installed {
+							t.Fatal("confirmed deletion did not publish")
+						}
+					}
+					assertVersionViewsConsistent(t, m)
+				})
 			}
-			if v, _ := m.projection.lookup("1.26.0"); !v.Installed {
-				t.Fatal("cancelled deletion changed catalog")
+			for _, tt := range []struct {
+				name      string
+				key       tea.KeyPressMsg
+				returnKey tea.KeyPressMsg
+			}{
+				{name: "cancel", key: tea.KeyPressMsg{Code: 'N', Text: "N"}},
+				{name: "tab switch", key: tea.KeyPressMsg{Code: tea.KeyTab}, returnKey: shiftTab()},
+				{name: "reverse tab switch", key: shiftTab(), returnKey: tea.KeyPressMsg{Code: tea.KeyTab}},
+			} {
+				t.Run(tt.name, func(t *testing.T) {
+					m := newVersionCacheTestModel(t)
+					deletes := 0
+					m = m.BindVersionOperations(VersionOperations{Delete: func(_ context.Context, version string) (lifecycle.DeletionResult, error) {
+						deletes++
+						return lifecycle.DeletionResult{Version: version}, nil
+					}})
+					m = selectTarget(t, m)
+					updated, cmd := m.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
+					m = updated.(Model)
+					if cmd != nil || m.inputContext() != inputDeleteConfirm {
+						t.Fatal("missing confirmation")
+					}
+					m = press(t, m, tt.key)
+					if tt.returnKey.Code != 0 {
+						m = press(t, m, tt.returnKey)
+					}
+					updated, cmd = m.Update(tea.KeyPressMsg{Code: 'Y', Text: "Y"})
+					m = runCatalogTestCmd(t, updated.(Model), cmd)
+					if m.CurrentTab != tab.id || m.inputContext() == inputDeleteConfirm || deletes != 0 {
+						t.Fatal("cancelled confirmation survived cancellation or dispatched deletion")
+					}
+					if v, _ := m.projection.lookup("1.26.0"); !v.Installed {
+						t.Fatal("cancelled deletion changed catalog")
+					}
+					assertVersionViewsConsistent(t, m)
+				})
 			}
-			assertVersionViewsConsistent(t, m)
 		})
 	}
 }

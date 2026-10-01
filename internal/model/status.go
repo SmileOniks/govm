@@ -1,12 +1,9 @@
 package model
 
-// clearDeleteContext resets the delete-confirmation context on Model.
-// It is the half of the historical clearTabContext that does not touch
-// the status line; clearTabContext composes this with Status.ClearTab
-// so the tab-switch path still tears down both in one call.
+// clearDeleteContext resets the Available tab's inline confirmation.
 func (m *Model) clearDeleteContext() {
-	m.ConfirmingDelete = false
-	m.DeleteVersion = ""
+	m.availableConfirmingDelete = false
+	m.availableDeleteVersion = ""
 }
 
 // clearTabContext tears down everything the current tab accumulated:
@@ -16,5 +13,7 @@ func (m *Model) clearDeleteContext() {
 func (m *Model) clearTabContext() {
 	m.Status.ClearTab()
 	m.clearDeleteContext()
-	m.Prune.Reset()
+	if m.CurrentTab == InstalledTab {
+		m.installed.update(installedLeaveMsg{})
+	}
 }

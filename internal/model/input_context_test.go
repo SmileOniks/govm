@@ -1,6 +1,7 @@
 package model
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -9,34 +10,20 @@ import (
 	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
 
-// activeModeFlags counts the keyboard-owning mode flags that are set.
-// The Input context is well defined only while at most one is set.
-func activeModeFlags(m *Model) int {
-	flags := []bool{
-		m.settings.editingDistributionSource,
-		m.settings.editingDepsBackupLimit,
-		m.HelpVisible,
-		m.deps.dialog.active(),
-		m.Prune.Confirming(),
-		m.ConfirmingDelete,
-		m.filterInputActive(),
-	}
-	count := 0
-	for _, set := range flags {
-		if set {
-			count++
-		}
-	}
-	return count
-}
-
 func confirmPrune(t *testing.T, m *Model) {
 	t.Helper()
-	if !m.Prune.BeginPreview() {
-		t.Fatal("expected prune preview transition to be allowed")
+	*m = m.BindVersionOperations(VersionOperations{
+		PreviewPrune: func(context.Context) (prune.Result, error) {
+			return prune.Result{Candidates: []prune.Candidate{{Version: "1.23.0", Bytes: 1024}}}, nil
+		},
+	})
+	updated, cmd := m.Update(tea.KeyPressMsg{Code: 'p'})
+	if cmd == nil {
+		t.Fatal("expected prune preview command")
 	}
-	if !m.Prune.AcceptPreview(prune.Result{Candidates: []prune.Candidate{{Version: "1.23.0", Bytes: 1024}}}) {
-		t.Fatal("expected prune plan to be accepted for confirmation")
+	*m = runCatalogTestCmd(t, updated.(Model), cmd)
+	if m.inputContext() != inputPruneConfirm {
+		t.Fatalf("preview context = %v, want prune confirmation", m.inputContext())
 	}
 }
 
@@ -117,12 +104,6 @@ func TestInputContextResolvesEachState(t *testing.T) {
 			m := tt.setup(t, newTestModel(t))
 			if got := m.inputContext(); got != tt.want {
 				t.Fatalf("inputContext() = %s, want %s", got, tt.want)
-			}
-			// Every opening transition leaves exactly one mode flag
-			// set: the invariant that makes the resolver's order a
-			// mere order of checks rather than a conflict rule.
-			if n := activeModeFlags(&m); n > 1 {
-				t.Fatalf("%d mode flags set after entering %s, want at most 1", n, tt.want)
 			}
 			wantCanOpen := tt.want == inputTab
 			if got := m.canOpenMode(); got != wantCanOpen {

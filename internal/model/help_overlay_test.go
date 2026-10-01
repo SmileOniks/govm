@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/prune"
+	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
 
 // pressKey dispatches a key press through the full Update path and
@@ -197,23 +197,19 @@ func TestHelpOverlaySectionsResolveContext(t *testing.T) {
 		t.Fatalf("plain model context = %q, want Available", sections[0].title)
 	}
 
-	m.ConfirmingDelete = true
+	seedVersions(t, &m, []utils.GoVersion{{Version: "1.23.0", Installed: true, Path: "/p/1.23.0"}})
+	m = press(t, m, tea.KeyPressMsg{Code: 'd'})
 	if sections := helpOverlaySections(m); sections[0].title != "Confirm delete" {
 		t.Fatalf("delete confirmation context = %q, want Confirm delete", sections[0].title)
 	}
 
-	m.ConfirmingDelete = false
-	if !m.Prune.BeginPreview() {
-		t.Fatal("expected prune preview transition to be allowed")
-	}
-	if !m.Prune.AcceptPreview(prune.Result{Candidates: []prune.Candidate{{Version: "1.23.0", Bytes: 1024}}}) {
-		t.Fatal("expected prune plan to be accepted for confirmation")
-	}
+	m = press(t, m, tea.KeyPressMsg{Code: 'n'}, tea.KeyPressMsg{Code: tea.KeyTab})
+	confirmPrune(t, &m)
 	if sections := helpOverlaySections(m); sections[0].title != "Confirm prune" {
 		t.Fatalf("prune confirmation context = %q, want Confirm prune", sections[0].title)
 	}
 
-	m.Prune.Reset()
+	m = press(t, m, tea.KeyPressMsg{Code: tea.KeyEscape})
 	withDialog(&m, func(m Model) Model { return confirmChecksFrom(t, m) })
 	if sections := helpOverlaySections(m); sections[0].title != "Run checks" {
 		t.Fatalf("dialog context = %q, want Run checks", sections[0].title)

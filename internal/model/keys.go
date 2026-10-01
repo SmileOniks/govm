@@ -42,6 +42,9 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		}
 		return m.delegateDeps(msg)
 	}
+	if m.CurrentTab == InstalledTab {
+		return m.delegateInstalled(msg)
+	}
 	switch msg.String() {
 	case "i":
 		return m.handleInstallKey()
@@ -51,8 +54,6 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleRefreshKey()
 	case "d":
 		return m.handleDeleteKey()
-	case "p":
-		return m.handlePruneKey()
 	case "f":
 		return m.handleFilterKey(msg)
 	case "esc":
@@ -63,26 +64,6 @@ func (m *Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return m.handleDeleteConfirmNo()
 	}
 	return m.handleActiveComponentKey(msg)
-}
-
-// handlePruneDialogKey owns the keyboard while the prune dialog awaits
-// its answer. It mirrors handleDialogKey: the shared Yes/No keys move
-// the highlight or commit a choice, and the per-kind confirm/cancel
-// paths run the transition.
-func (m *Model) handlePruneDialogKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c", "q":
-		return m, tea.Quit
-	}
-	choiceYes, action := yesNoKeyAction(msg.String(), m.Prune.ChoiceYes())
-	m.Prune.SetChoiceYes(choiceYes)
-	switch action {
-	case dialogConfirm:
-		return m.handlePruneConfirmYes()
-	case dialogCancel:
-		return m.handlePruneConfirmNo()
-	}
-	return m, nil
 }
 
 // handleHelpOverlayKey owns the keyboard while the Help overlay is
@@ -107,11 +88,8 @@ func (m *Model) handleActiveComponentKey(msg tea.KeyPressMsg) (tea.Model, tea.Cm
 		return m, nil
 	}
 
-	switch m.CurrentTab {
-	case AvailableTab:
+	if m.CurrentTab == AvailableTab {
 		return m, m.projection.updateAvailable(msg)
-	case InstalledTab:
-		return m, m.projection.updateInstalled(msg)
 	}
 	return m, nil
 }
@@ -197,23 +175,15 @@ func (m *Model) handleInstallKey() (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleUseKey() (tea.Model, tea.Cmd) {
-	version := ""
-	switch m.CurrentTab {
-	case AvailableTab:
-		if selected := m.projection.selectedAvailableItem(); selected != nil {
-			version = selected.Name
-		}
-	case InstalledTab:
-		row := m.projection.selectedInstalledItem()
-		if len(row) == 0 {
-			return m, nil
-		}
-		version = row[0]
-	default:
+	if m.CurrentTab != AvailableTab {
+		return m, nil
+	}
+	selected := m.projection.selectedAvailableItem()
+	if selected == nil {
 		return m, nil
 	}
 	return m, m.applyCatalog(catalogActionMsg{
-		kind: catalogActionActivate, version: version, tab: m.CurrentTab,
+		kind: catalogActionActivate, version: selected.Name, tab: AvailableTab,
 	})
 }
 
@@ -222,65 +192,45 @@ func (m *Model) handleRefreshKey() (tea.Model, tea.Cmd) {
 }
 
 func (m *Model) handleDeleteKey() (tea.Model, tea.Cmd) {
-	if m.CurrentTab != AvailableTab && m.CurrentTab != InstalledTab {
+	if m.CurrentTab != AvailableTab || m.installed.pruneBusy() {
 		return m, nil
 	}
-	if m.Prune.Busy() {
+	selected := m.projection.selectedAvailableItem()
+	if selected == nil {
 		return m, nil
-	}
-	version := ""
-	if m.CurrentTab == AvailableTab {
-		selected := m.projection.selectedAvailableItem()
-		if selected == nil {
-			return m, nil
-		}
-		version = selected.Name
-	} else {
-		row := m.projection.selectedInstalledItem()
-		if len(row) == 0 {
-			return m, nil
-		}
-		version = row[0]
 	}
 	return m, m.applyCatalog(catalogActionMsg{
-		kind: catalogActionRequestDelete, version: version, tab: m.CurrentTab,
+		kind: catalogActionRequestDelete, version: selected.Name, tab: AvailableTab,
 	})
 }
 
-func (m *Model) handlePruneKey() (tea.Model, tea.Cmd) {
-	if m.CurrentTab != InstalledTab ||
-		!m.projection.canStartPrune() ||
-		m.ConfirmingDelete {
-		return m, nil
+// delegateInstalled snapshots catalog facts without giving the tab a Model pointer.
+func (m *Model) delegateInstalled(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
+		version := ""
+		if row := m.projection.selectedInstalledItem(); len(row) > 0 {
+			version = row[0]
+		}
+		msg = installedKeyMsg{key: key, selectedVersion: version, canStartPrune: m.projection.canStartPrune()}
 	}
-	// The nil check stays ahead of the transition: moving to previewing
-	// without emitting a command would strand the phase until the user
-	// leaves the tab.
-	if m.previewPrune == nil {
-		m.Status.SetTab("Prune service is not configured.", "error")
-		return m, nil
-	}
-	if !m.Prune.BeginPreview() {
-		return m, nil
-	}
-	m.Status.SetTab("Preparing prune plan...", "info")
-	return m, m.previewPruneCmd()
+	cmd, status := m.installed.update(msg)
+	return m, tea.Batch(cmd, m.applyInstalledStatus(status))
 }
 
-func (m *Model) handlePruneConfirmYes() (tea.Model, tea.Cmd) {
-	if !m.Prune.Confirm() {
-		return m, nil
+func (m *Model) applyInstalledStatus(status installedStatus) tea.Cmd {
+	switch status.scope {
+	case installedStatusTab:
+		m.Status.SetTab(status.text, status.kind)
+	case installedStatusGlobal:
+		m.Status.SetGlobal(status.text, status.kind)
 	}
-	m.Status.SetGlobal("Pruning inactive Go versions...", "info")
-	return m, m.pruneCmd()
-}
-
-func (m *Model) handlePruneConfirmNo() (tea.Model, tea.Cmd) {
-	if !m.Prune.Cancel() {
-		return m, nil
+	if status.navigate {
+		return m.projection.updateInstalled(status.tableKey)
 	}
-	m.Status.SetTab("Prune operation canceled.", "info")
-	return m, nil
+	if status.catalogMsg != nil {
+		return m.applyCatalog(status.catalogMsg)
+	}
+	return nil
 }
 
 // delegateSettings routes msg to the Settings tab and applies its
@@ -346,20 +296,20 @@ func (m *Model) applyRuntimeTheme() tea.Cmd {
 }
 
 func (m *Model) handleDeleteConfirmYes() (tea.Model, tea.Cmd) {
-	if !m.ConfirmingDelete {
+	if m.CurrentTab != AvailableTab || !m.availableConfirmingDelete {
 		return m, nil
 	}
 	return m, m.applyCatalog(catalogActionMsg{
-		kind: catalogActionConfirmDelete, version: m.DeleteVersion, tab: m.CurrentTab,
+		kind: catalogActionConfirmDelete, version: m.availableDeleteVersion, tab: AvailableTab,
 	})
 }
 
 func (m *Model) handleDeleteConfirmNo() (tea.Model, tea.Cmd) {
-	if !m.ConfirmingDelete {
+	if m.CurrentTab != AvailableTab || !m.availableConfirmingDelete {
 		return m, nil
 	}
-	m.ConfirmingDelete = false
-	m.DeleteVersion = ""
+	m.availableConfirmingDelete = false
+	m.availableDeleteVersion = ""
 	m.Status.SetTab("Delete operation canceled.", "info")
 	return m, nil
 }

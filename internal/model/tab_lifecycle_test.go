@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -82,9 +83,14 @@ func TestTabSwitchClearsSwitchedToGoStatus(t *testing.T) {
 
 func TestTabSwitchCancelsPendingDelete(t *testing.T) {
 	m := newVersionCacheTestModel(t)
+	deletes := 0
+	m = m.BindVersionOperations(VersionOperations{Delete: func(_ context.Context, version string) (lifecycle.DeletionResult, error) {
+		deletes++
+		return lifecycle.DeletionResult{Version: version}, nil
+	}})
 	m = applyFilter(t, m, "1.26.0")
 	m = press(t, m, tea.KeyPressMsg{Code: 'd'})
-	if !m.ConfirmingDelete || m.DeleteVersion != "1.26.0" {
+	if m.inputContext() != inputDeleteConfirm || !strings.Contains(m.Status.Text(), "delete Go 1.26.0?") {
 		t.Fatal("delete confirmation did not open for the selected inactive version")
 	}
 	updated, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyTab})
@@ -93,13 +99,16 @@ func TestTabSwitchCancelsPendingDelete(t *testing.T) {
 	if got.CurrentTab != InstalledTab {
 		t.Fatalf("current tab = %d, want %d", got.CurrentTab, InstalledTab)
 	}
-	if got.ConfirmingDelete {
-		t.Fatal("ConfirmingDelete = true, want false")
-	}
-	if got.DeleteVersion != "" {
-		t.Fatalf("DeleteVersion = %q, want empty", got.DeleteVersion)
+	if got.inputContext() == inputDeleteConfirm {
+		t.Fatal("delete confirmation must not claim input after leaving Available")
 	}
 	if got.Status.Text() != "" || got.Status.Kind() != "" {
 		t.Fatalf("delete status = (%q, %q), want empty", got.Status.Text(), got.Status.Kind())
+	}
+	got = press(t, got, shiftTab())
+	updated, cmd := got.Update(tea.KeyPressMsg{Code: 'Y'})
+	got = runCatalogTestCmd(t, updated.(Model), cmd)
+	if deletes != 0 || got.inputContext() == inputDeleteConfirm {
+		t.Fatal("returning to Available must not restore the cancelled delete")
 	}
 }
