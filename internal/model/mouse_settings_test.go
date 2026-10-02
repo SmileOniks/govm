@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -149,8 +150,8 @@ func TestMouseSettings(t *testing.T) {
 		start, want int
 		label       string
 	}{
-		{name: "minus wraps minimum", start: config.MinDepsBackupLimit, want: config.MaxDepsBackupLimit, label: "[−]"},
-		{name: "plus wraps maximum", start: config.MaxDepsBackupLimit, want: config.MinDepsBackupLimit, label: "[+]"},
+		{name: "minus wraps minimum", start: config.MinDepsBackupLimit, want: config.MaxDepsBackupLimit, label: "[ − ]"},
+		{name: "plus wraps maximum", start: config.MaxDepsBackupLimit, want: config.MinDepsBackupLimit, label: "[ + ]"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := newTestModel(t)
@@ -190,7 +191,7 @@ func TestMouseSettings(t *testing.T) {
 			}
 			settingsStore(m).err = tc.saveErr
 			m.settings.depsBackupLimitInput.SetValue(tc.input)
-			m = mouseClickRun(t, m, "enter save")
+			m = mouseClickRun(t, m, "Save enter")
 			wrongValues := m.settings.values.DepsBackupLimit != tc.want || settingsStore(m).values.DepsBackupLimit != tc.want
 			wrongEditor := m.settings.editingDepsBackupLimit != tc.open
 			if wrongEditor || wrongValues || m.deps.backupLimit != tc.want {
@@ -201,7 +202,7 @@ func TestMouseSettings(t *testing.T) {
 				if m.settings.depsBackupLimitInputErr == "" {
 					t.Fatal("rejected save did not display a validation/storage error")
 				}
-				m = mouseClickRun(t, m, "esc cancel")
+				m = mouseClickRun(t, m, "Cancel esc")
 				if m.settings.editingDepsBackupLimit || m.settings.values.DepsBackupLimit != 10 {
 					t.Fatal("cancel did not discard the failed edit")
 				}
@@ -214,7 +215,7 @@ func TestMouseSettings(t *testing.T) {
 		m = mouseClickRun(t, m, "Settings")
 		m, _ = mouseSettingValue(t, m, "Deps backups:", "10")
 		m.settings.depsBackupLimitInput.SetValue("25")
-		m = mouseClickRun(t, m, "esc cancel")
+		m = mouseClickRun(t, m, "Cancel esc")
 		wrongValues := m.settings.values.DepsBackupLimit != 10 || settingsStore(m).values.DepsBackupLimit != 10
 		if m.settings.textInputActive() || wrongValues {
 			t.Fatal("Cancel saved or retained the pending limit editor")
@@ -238,12 +239,12 @@ func TestMouseSettings(t *testing.T) {
 		}})
 		m.settings.distributionSourceInput.SetValue("https://mirror.example/dl/")
 		var pending tea.Cmd
-		m, pending = mouseClick(t, m, "enter check and save")
+		m, pending = mouseClick(t, m, "Check and save enter")
 		if !m.settings.checkingDistributionSource || m.settings.distributionSourceRequestID == 0 || pending == nil {
 			t.Fatal("Check did not enter correlated source-check state")
 		}
 		requestID := m.settings.distributionSourceRequestID
-		for _, label := range []string{"enter check and save", "r reset to official"} {
+		for _, label := range []string{"Check and save enter", "Reset to official r"} {
 			var cmd tea.Cmd
 			m, cmd = mouseClick(t, m, label)
 			wrongRequest := m.settings.distributionSourceRequestID != requestID || !m.settings.checkingDistributionSource
@@ -254,7 +255,7 @@ func TestMouseSettings(t *testing.T) {
 		}
 		// Produce the successful result, but deliver it only after Cancel.
 		late := installedTestCommandResult(t, pending)
-		m = mouseClickRun(t, m, "esc cancel")
+		m = mouseClickRun(t, m, "Cancel esc")
 		editorActive := m.settings.textInputActive() || m.settings.checkingDistributionSource
 		requestActive := m.settings.distributionSourceRequestID != 0 ||
 			m.projection.operationPhase() != catalogOperationPhaseIdle
@@ -272,7 +273,7 @@ func TestMouseSettings(t *testing.T) {
 		// Teardown must release the catalog operation as well as close input.
 		m, _ = mouseSettingValue(t, m, "Distribution source:", "https://go.dev/dl/")
 		m.settings.distributionSourceInput.SetValue("https://second.example/dl/")
-		m = mouseClickRun(t, m, "enter check and save")
+		m = mouseClickRun(t, m, "Check and save enter")
 		wrongSource := m.settings.values.DistributionSource != "https://second.example/dl/"
 		if m.settings.textInputActive() || wrongSource || calls != 2 {
 			t.Fatal("canceled source check prevented a subsequent successful check")
@@ -285,19 +286,19 @@ func TestMouseSettings(t *testing.T) {
 		open                           bool
 	}{
 		{
-			name: "check saves operation source and catalog", label: "enter check and save",
+			name: "check saves operation source and catalog", label: "Check and save enter",
 			input: "https://mirror.example/dl", wantSource: "https://mirror.example/dl/",
 		},
 		{
-			name: "Reset checks official source", label: "r reset to official",
+			name: "Reset checks official source", label: "Reset to official r",
 			input: "https://mirror.example/dl", wantSource: config.DefaultDistributionSource,
 		},
 		{
-			name: "invalid source remains open", label: "enter check and save",
+			name: "invalid source remains open", label: "Check and save enter",
 			input: "", wantSource: config.DefaultDistributionSource, open: true,
 		},
 		{
-			name: "source failure remains open", label: "enter check and save",
+			name: "source failure remains open", label: "Check and save enter",
 			input: "https://mirror.example/dl", wantSource: config.DefaultDistributionSource,
 			err: errors.New("catalog unavailable"), open: true,
 		},
@@ -348,5 +349,80 @@ func TestMouseSettings(t *testing.T) {
 				t.Fatal("successful source change did not publish the operation catalog")
 			}
 		})
+	}
+}
+
+func TestMouseSettingsButtonEdges(t *testing.T) {
+	for _, theme := range []config.ThemeName{config.ThemeCurrent, config.ThemeLight} {
+		for _, width := range []int{64, 130} {
+			for _, row := range []struct {
+				label string
+				kind  settingsRowKind
+			}{
+				{label: "Deps display:", kind: settingRowDepsDisplay},
+				{label: "Theme:", kind: settingRowTheme},
+				{label: "Deps backups:", kind: settingRowDepsBackups},
+				{label: "Distribution source:", kind: settingRowDistributionSource},
+				{label: "Upgrade notice:", kind: settingRowUpgradeNotice},
+			} {
+				for _, edge := range []string{"left bracket", "left padding", "right padding", "right bracket"} {
+					t.Run(fmt.Sprintf("%s/%d/%s/%s", theme, width, row.label, edge), func(t *testing.T) {
+						m := newTestModel(t)
+						m.settings.values.Theme = theme
+						source := "https://example.com/" + strings.Repeat("界e\u0301", 30) + "/"
+						m.settings.values.DistributionSource = source
+						m.applyRuntimeTheme()
+						m = mouseSized(t, m, width, 20)
+						m, _ = mouseClick(t, m, "Settings")
+						before := m.settings.values
+						v := m.View()
+						mouseGeometryBounds(t, v, width, 20)
+						_, y := mouseText(t, v, row.label)
+						line := ansi.Strip(strings.Split(v.Content, "\n")[y])
+						left := strings.Index(line, "[ ")
+						right := strings.Index(line, " ]")
+						if left < 0 || right < 0 {
+							t.Fatalf("setting value has no complete button: %q", line)
+						}
+						x := ansi.StringWidth(line[:left])
+						switch edge {
+						case "left padding":
+							x++
+						case "right padding":
+							x = ansi.StringWidth(line[:right])
+						case "right bracket":
+							x = ansi.StringWidth(line[:right]) + 1
+						}
+						m, cmd := mouseAt(t, m, v, tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+						m = mouseRunCmd(t, m, cmd)
+						if m.settings.cursor != row.kind {
+							t.Fatal("button did not select its setting")
+						}
+						switch row.kind {
+						case settingRowDepsDisplay:
+							if m.settings.values.DepsDisplay == before.DepsDisplay {
+								t.Fatal("button edge did not toggle display mode")
+							}
+						case settingRowTheme:
+							if m.settings.values.Theme == before.Theme {
+								t.Fatal("button edge did not toggle theme")
+							}
+						case settingRowDepsBackups:
+							if !m.settings.editingDepsBackupLimit || m.settings.values.DepsBackupLimit != before.DepsBackupLimit {
+								t.Fatal("value button must open the editor, not step the limit")
+							}
+						case settingRowDistributionSource:
+							if !m.settings.editingSource() || m.settings.distributionSourceInput.Value() != source {
+								t.Fatal("clipped source button did not open the full source for editing")
+							}
+						case settingRowUpgradeNotice:
+							if m.settings.values.UpgradeNotice == before.UpgradeNotice {
+								t.Fatal("button edge did not toggle upgrade notice")
+							}
+						}
+					})
+				}
+			}
+		}
 	}
 }

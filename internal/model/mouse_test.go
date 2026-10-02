@@ -110,7 +110,7 @@ func TestMouseTabsAndActions(t *testing.T) {
 				t.Fatalf("%s selected tab %d", tc.label, m.CurrentTab)
 			}
 		}
-		m = mouseClickRun(t, m, "r refresh")
+		m = mouseClickRun(t, m, "Refresh r")
 		if loads != 1 {
 			t.Fatalf("refresh loads=%d", loads)
 		}
@@ -140,7 +140,7 @@ func TestMouseTabsAndActions(t *testing.T) {
 			if activated != "" || deleted != "" {
 				t.Fatal("selection performed an operation")
 			}
-			m = mouseClickRun(t, m, "u use")
+			m = mouseClickRun(t, m, "Use u")
 			if activated != "1.25.1" {
 				t.Fatalf("activated %q", activated)
 			}
@@ -149,15 +149,15 @@ func TestMouseTabsAndActions(t *testing.T) {
 				t.Fatal("activation not reflected in catalog")
 			}
 			m = mouseClickRun(t, m, "1.26.1")
-			m = mouseClickRun(t, m, "d delete")
-			m = mouseClickRun(t, m, "n cancel")
+			m = mouseClickRun(t, m, "Delete d")
+			m = mouseClickRun(t, m, "Cancel n")
 			if deleted != "" {
 				t.Fatal("cancel deleted version")
 			}
-			m = mouseClickRun(t, m, "d delete")
+			m = mouseClickRun(t, m, "Delete d")
 			// Inline confirmation must not allow changing its captured version.
 			m = mouseClickRun(t, m, "1.24.1")
-			m = mouseClickRun(t, m, "y confirm")
+			m = mouseClickRun(t, m, "Confirm y")
 			if deleted != "1.26.1" {
 				t.Fatalf("deleted %q", deleted)
 			}
@@ -231,7 +231,7 @@ func TestMouseAvailableSelection(t *testing.T) {
 		m := newTestModel(t)
 		seedVersions(t, &m, []utils.GoVersion{{Version: "1.26.1"}, {Version: "1.25.2"}, {Version: "1.25.1"}})
 		m = mouseSized(t, m, 80, 24)
-		m = mouseClickRun(t, m, "f find")
+		m = mouseClickRun(t, m, "Find f")
 		m = typeIntoFilter(t, m, "1.25")
 		before := selectedListVersion(m)
 		m = mouseClickRun(t, m, "1.25.1")
@@ -239,21 +239,21 @@ func TestMouseAvailableSelection(t *testing.T) {
 		if selectedListVersion(m) != before || !m.filterInputActive() {
 			t.Fatal("filter editing allowed row navigation")
 		}
-		m = mouseClickRun(t, m, "enter apply")
+		m = mouseClickRun(t, m, "Apply enter")
 		m = mouseClickRun(t, m, "1.25.1")
 		if selectedListVersion(m) != "1.25.1" {
 			t.Fatal("filtered row identity mismatch")
 		}
-		m = mouseClickRun(t, m, "esc clear")
+		m = mouseClickRun(t, m, "Clear esc")
 		if m.projection.availableFilterApplied() {
 			t.Fatal("clear kept filter")
 		}
-		m = mouseClickRun(t, m, "f find")
+		m = mouseClickRun(t, m, "Find f")
 		m = typeIntoFilter(t, m, "nomatch")
 		if len(m.projection.availableModel().VisibleItems()) != 0 {
 			t.Fatal("expected no matches")
 		}
-		m = mouseClickRun(t, m, "esc clear")
+		m = mouseClickRun(t, m, "Clear esc")
 		if len(m.projection.availableModel().VisibleItems()) != 3 {
 			t.Fatal("clear did not restore catalog")
 		}
@@ -283,33 +283,48 @@ func TestMouseDependencyMarks(t *testing.T) {
 		t.Fatal("path click must only select")
 	}
 	for _, path := range []string{"example.com/a", "example.com/c"} {
-		for _, marked := range []bool{true, false, true} {
+		// The space between the checkbox and path belongs to row selection.
+		v := m.View()
+		x, y := mouseText(t, v, path)
+		m, _ = mouseAt(t, m, v, tea.MouseClickMsg{X: x - 1, Y: y, Button: tea.MouseLeft})
+		if m.deps.marked(path) || m.deps.rowPaths[m.deps.table.Cursor()] != path {
+			t.Fatal("checkbox gap must select the row without marking it")
+		}
+		for cell, marked := range []bool{true, false, true} {
+			if cell != 1 {
+				m = mouseClickRun(t, m, "example.com/b")
+			}
 			v := m.View()
 			x, y := mouseText(t, v, path)
 			line := ansi.Strip(strings.Split(v.Content, "\n")[y])
 			prefix := ansi.Cut(line, 0, x)
-			at := strings.LastIndexAny(prefix, "○●")
+			at := strings.LastIndex(prefix, "[")
 			if at < 0 {
-				t.Fatalf("mark glyph missing in %q", line)
+				t.Fatalf("checkbox missing in %q", line)
 			}
-			gx := ansi.StringWidth(prefix[:at])
+			gx := ansi.StringWidth(prefix[:at]) + cell
 			m, _ = mouseAt(t, m, v, tea.MouseClickMsg{X: gx, Y: y, Button: tea.MouseLeft})
 			if m.deps.marked(path) != marked {
-				t.Fatalf("glyph for %s marked=%v want %v", path, m.deps.marked(path), marked)
+				t.Fatalf("checkbox for %s marked=%v want %v", path, m.deps.marked(path), marked)
 			}
+			checkbox := "[○] "
+			if marked {
+				checkbox = "[●] "
+			}
+			mouseText(t, m.View(), checkbox+path)
 			m, _ = mouseAt(t, m, m.View(), tea.MouseReleaseMsg{X: gx, Y: y, Button: tea.MouseLeft})
 			if m.deps.marked(path) != marked {
 				t.Fatal("release toggled mark twice")
 			}
 		}
 	}
-	m, _ = mouseClick(t, m, "u update")
+	m, _ = mouseClick(t, m, "Update u")
 	selection := startedSelection(t, m)
 	if len(selection.Modules) != 2 || selection.Modules[0] != "example.com/a" || selection.Modules[1] != "example.com/c" {
 		t.Fatalf("update selection=%+v", selection)
 	}
 	m = mouseClickRun(t, m, "example.com/b")
-	m = mouseClickRun(t, m, "space mark")
+	m = mouseClickRun(t, m, "Mark space")
 	if m.deps.marked("example.com/b") {
 		t.Fatal("busy action changed marks")
 	}
@@ -374,7 +389,7 @@ func TestMouseContextIsolation(t *testing.T) {
 		m := mouseSized(t, modelAtConfirmApply(t), 80, 24)
 		old := m.View()
 		x, y := mouseText(t, old, "Yes")
-		m = mouseClickRun(t, m, "? help")
+		m = mouseClickRun(t, m, "Help ?")
 		if !m.HelpVisible {
 			t.Fatal("help did not open")
 		}
@@ -383,7 +398,7 @@ func TestMouseContextIsolation(t *testing.T) {
 		if m.deps.cycle.Phase() != deps.PhaseConfirmApply {
 			t.Fatalf("help activated underlying dialog: %s", m.deps.cycle.Phase())
 		}
-		m = mouseClickRun(t, m, "close help")
+		m = mouseClickRun(t, m, "Close help esc")
 		if m.HelpVisible || m.inputContext() != inputDepsDialog {
 			t.Fatal("close did not restore dialog context")
 		}

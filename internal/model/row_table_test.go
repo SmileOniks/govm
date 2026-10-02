@@ -7,6 +7,8 @@ import (
 
 	"charm.land/bubbles/v2/table"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/smileoniks-ctrl/govm/internal/config"
+	"github.com/smileoniks-ctrl/govm/internal/styles"
 )
 
 func TestRowTableVisibleSelection(t *testing.T) {
@@ -95,4 +97,36 @@ func TestRowTableVisibleSelection(t *testing.T) {
 		tbl.Resize(20, 4, columns)
 		assertVisible(t, tbl, 3, 1)
 	})
+}
+
+func TestRowTableSelectionPreservesGeometry(t *testing.T) {
+	for _, theme := range []config.ThemeName{config.ThemeCurrent, config.ThemeLight} {
+		for _, width := range []int{64, 80, 129, 130} {
+			t.Run(fmt.Sprintf("%s/%d", theme, width), func(t *testing.T) {
+				tbl := newRowTable(
+					dependencyTableColumns(width), width, 4,
+					tableStyles(styles.NewTheme(theme)),
+				)
+				tbl.SetRows([]table.Row{
+					{"[○] example.com/" + strings.Repeat("界e\u0301", 40), "v1.0.0", "v1.1.0", "update avail"},
+					{"[●] example.com/other", "v2.0.0", "v2.1.0", "update avail"},
+				})
+				before := tbl.render(mouseDependencyRow).content
+				tbl.SetCursor(1)
+				after := tbl.render(mouseDependencyRow).content
+				if before == after {
+					t.Fatal("moving the cursor did not change the visible highlight")
+				}
+				if ansi.Strip(before) != ansi.Strip(after) {
+					t.Fatalf("selection moved or clipped table cells:\nbefore:\n%s\nafter:\n%s",
+						ansi.Strip(before), ansi.Strip(after))
+				}
+				for _, line := range strings.Split(after, "\n") {
+					if ansi.StringWidth(line) > width {
+						t.Fatal("highlighted row exceeded the table width")
+					}
+				}
+			})
+		}
+	}
 }

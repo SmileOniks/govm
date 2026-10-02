@@ -138,11 +138,11 @@ The TUI header shows the GoVM version so you always know which build is running.
 
 Mouse support is experimental and is currently being tested in release candidates. Use a terminal with mouse reporting support. All keyboard shortcuts remain available.
 
-- **Tabs and actions:** left-click a tab or a visible action button. Buttons retain their keyboard labels and wrap onto additional lines in narrow terminals.
+- **Tabs and actions:** left-click a tab or a visible action button. The bottom panel and dialog footers share compact, single-line controls such as `[ Install i ]`, with the action name followed by its keyboard shortcut. The brackets and inner padding are clickable; the one-column gaps are not. Buttons wrap without splitting, and short action groups such as Help and Quit stay together. The minimum viewport remains 64×20.
 - **Version lists:** click a title, description, or table row to select it. Selection never installs, activates, or deletes a version; use the separate Install, Use, or Delete button. The wheel moves the selection one row at a time without wrapping.
-- **Dependencies:** click a row to select it; click its `○`/`●` marker to toggle its update selection. Updates, checks, and backups use their separate buttons.
+- **Dependencies:** click a row to select it; click any part of its `[○]` / `[●]` control to toggle its update selection. A filled circle marks a dependency for the next update; the highlighted row only identifies the cursor and does not shift the columns. Updates, checks, and backups use their separate buttons.
 - **Find:** click Find, type the query with the keyboard, then click Apply or Clear. Rows cannot be selected while the query is being edited.
-- **Settings:** click a row label to select it, or its value to toggle/edit it. The backup limit also has `−`/`+` buttons. The wheel only moves the selected row; it does not change or save values. Enter numbers and URLs with the keyboard, then click Save or Cancel.
+- **Settings:** click a row label to select it, or its `[ value ]` button to toggle/edit it. The brackets and inner padding are clickable. The backup limit has a `[ number ]` editor button plus separate `[ − ]` / `[ + ]` buttons. The wheel only moves the selected row; it does not change or save values. Enter numbers and URLs with the keyboard, then click Save or Cancel.
 - **Dialogs:** click the desired answer directly, regardless of which answer is highlighted. Dependency update level/scope selectors are clickable. In Restore, select or scroll to a backup first, then click Restore. Clicking outside a dialog does nothing.
 - **Help:** click Help to open it and Close Help to return to the prior context. Underlying rows and actions cannot be clicked through it.
 
@@ -238,7 +238,7 @@ The **Installed** tab shows **Version**, **Path**, **Size**, and **Status** (whe
 | Key | Action |
 |---|---|
 | `r` | Check for available updates online (runs `go list -u -versions`) |
-| `space` | Mark / unmark the dependency under the cursor (`●` = marked, `○` = not marked) |
+| `space` | Mark / unmark the dependency under the cursor (`[●]` = marked, `[○]` = not marked) |
 | `a` | Mark every listed dependency; if anything is already marked, clear all marks instead |
 | `u` | Open the update dialog. The **scope** starts at `Marked` when anything is marked and at `All` otherwise; `space` inside the dialog switches between them |
 | `b` | List saved dependency backups and choose one to restore |

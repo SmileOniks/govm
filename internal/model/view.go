@@ -3,6 +3,8 @@ package model
 import (
 	"fmt"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -282,7 +284,11 @@ func renderSettingsView(settings settingsTab, width int) renderedSurface {
 		}
 		prefix += labels[index] + ": "
 		x := ansi.StringWidth(prefix)
-		value := truncateSettingValue(valueLabels[index], max(0, width-x))
+		extraWidth := 0
+		if kind == settingRowDepsBackups {
+			extraWidth = 12 // Space plus two padded step buttons.
+		}
+		value := "[ " + truncateSettingValue(valueLabels[index], max(0, width-x-extraWidth-4)) + " ]"
 		line := prefix + value
 		targets = append(targets,
 			mouseTarget{rect: cellRect{y: index, width: width, height: 1},
@@ -292,10 +298,10 @@ func renderSettingsView(settings settingsTab, width int) renderedSurface {
 		)
 		if kind == settingRowDepsBackups {
 			x += ansi.StringWidth(value) + 1
-			line += " [−] [+]"
+			line += " [ − ] [ + ]"
 			for step := range 2 {
 				targets = append(targets, mouseTarget{
-					rect:   cellRect{x: x + step*4, y: index, width: 3, height: 1},
+					rect:   cellRect{x: x + step*6, y: index, width: 5, height: 1},
 					action: mouseAction{kind: mouseSettingStep, index: index, delta: step*2 - 1},
 				})
 			}
@@ -342,30 +348,75 @@ func renderHelpBar(t styles.Theme, m Model, width int) renderedSurface {
 }
 
 func renderControls(t styles.Theme, sections []helpSection, width int, checking bool) renderedSurface {
+	if width < 5 {
+		return renderedSurface{}
+	}
+	labelStyle := lipgloss.NewStyle().Foreground(t.Text)
+	open, close := t.HelpTextStyle.Render("[ "), t.HelpTextStyle.Render(" ]")
 	var content strings.Builder
 	targets := make([]mouseTarget, 0)
 	x, y := 0, 0
 	for _, section := range sections {
+		// Keep short action groups, such as Help and Quit, on the same row.
+		if x > 0 {
+			groupWidth := 0
+			for _, binding := range section.bindings {
+				for _, control := range binding.mouseControls {
+					if control.label == "" {
+						continue
+					}
+					if groupWidth > 0 {
+						groupWidth++
+					}
+					groupWidth += lipgloss.Width(control.label) + 4
+				}
+			}
+			if groupWidth > 0 && groupWidth <= width && x+1+groupWidth > width {
+				content.WriteByte('\n')
+				x = 0
+				y++
+			}
+		}
 		for _, binding := range section.bindings {
 			for _, control := range binding.mouseControls {
 				if control.label == "" {
 					continue
 				}
 				keyLabel, description, _ := strings.Cut(control.label, " ")
-				button := t.HelpKeyStyle.Render("["+keyLabel) + t.HelpTextStyle.Render(" "+description+"]")
-				disabled := checking && (control.key.Code == tea.KeyEnter || control.key.Code == 'r')
-				if disabled {
-					button = t.HelpTextStyle.Render("[" + control.label + "]")
+				if binding.keys != "" && strings.HasPrefix(control.label, binding.keys+" ") {
+					keyLabel, description = binding.keys, strings.TrimPrefix(control.label, binding.keys+" ")
 				}
+				if description != "" {
+					first, size := utf8.DecodeRuneInString(description)
+					description = string(unicode.ToUpper(first)) + description[size:]
+				}
+				disabled := checking && (control.key.Code == tea.KeyEnter || control.key.Code == 'r')
+				var inner string
+				if disabled {
+					inner = keyLabel
+					if description != "" {
+						inner = description + " " + inner
+					}
+					inner = t.HelpTextStyle.Render(inner)
+				} else {
+					inner = t.HelpKeyStyle.Render(keyLabel)
+					if description != "" {
+						inner = labelStyle.Render(description) + " " + inner
+					}
+				}
+				if lipgloss.Width(inner) > width-4 {
+					inner = ansi.Cut(inner, 0, width-4)
+				}
+				button := open + inner + close
 				buttonWidth := lipgloss.Width(button)
-				if x > 0 && x+2+buttonWidth > width {
+				if x > 0 && x+1+buttonWidth > width {
 					content.WriteByte('\n')
 					x = 0
 					y++
 				}
 				if x > 0 {
-					content.WriteString("  ")
-					x += 2
+					content.WriteByte(' ')
+					x++
 				}
 				content.WriteString(button)
 				if !disabled {

@@ -45,6 +45,22 @@ Bubble Tea 2.0.10 skips `OnMouse` updates when the visible view fields compare
 equal. `mouseFrameContent` therefore carries the full revision in a zero-cell
 OSC 8 close marker; removing it freezes clicks after visually unchanged updates.
 
+The bottom panel and modal footers share `renderControls`: single-line
+`[ Action key ]` buttons with clickable brackets and inner padding, separated by
+one non-clickable column. Short registry sections wrap as a group; longer sections
+wrap by whole buttons. Measure terminal-cell widths, not byte lengths.
+Let `chrome`/`relayout` measure footer height and `joinSurfaces` translate targets;
+do not reserve a fixed footer height. Keep both themes, PATH warnings, Installed
+summaries, and long Unicode filters in the viewport matrix. Test button edges,
+padding, wrapped rows, and gaps using coordinates from the visible frame.
+
+Settings values are `[ value ]` buttons: clip long values inside the brackets,
+reserve room for backup-limit step buttons, and include brackets and padding in
+the activation rectangle. Dependency selection controls use all three cells of
+`[○]` / `[●]` as the mark target; the following gap and module path only select
+the row. Keep cursor highlighting separate from update marks. Table-cell styles
+own padding; the selected-row wrapper must not add spacing or shift columns.
+
 Mouse regressions should locate coordinates in the visible rendered text, not
 read the hit targets they are testing. Cover selection separately from execution,
 modal isolation, delayed clicks, wheel bursts, filtering, and 64×20 layouts.

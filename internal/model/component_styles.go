@@ -12,13 +12,12 @@ import (
 	"github.com/smileoniks-ctrl/govm/internal/styles"
 )
 
-// tableStyles returns the table.Styles pair (header/selected/cell) for
-// the given theme. It is called from Model.New and from
-// applyRuntimeTheme when the theme changes.
+// tableStyles leaves spacing to the cells; the selected-row wrapper only paints
+// the highlight. The shared list style keeps its padding for list items.
 func tableStyles(t styles.Theme) table.Styles {
 	return table.Styles{
 		Header:   t.TableHeaderStyle,
-		Selected: t.TableSelectedStyle,
+		Selected: t.TableSelectedStyle.Padding(0),
 		Cell:     t.TableCellStyle,
 	}
 }

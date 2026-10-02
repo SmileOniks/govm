@@ -272,7 +272,7 @@ func TestMouseDialogs(t *testing.T) {
 				m = m.BindVersionOperations(VersionOperations{PreviewPrune: func(context.Context) (prune.Result, error) {
 					return installedTestPlan("1.26.1", 1024), nil
 				}})
-				m = mouseClickRun(t, m, "p prune")
+				m = mouseClickRun(t, m, "Prune p")
 				if m.inputContext() != inputPruneConfirm {
 					t.Fatal("cancel did not allow another prune preview")
 				}

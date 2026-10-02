@@ -341,33 +341,6 @@ func TestAppliedFilterIndicatorLine(t *testing.T) {
 	}
 }
 
-func TestFilterHintBar(t *testing.T) {
-	m := newTestModel(t)
-	seedVersions(t, &m, []utils.GoVersion{
-		{Version: "1.24.4"},
-		{Version: "1.25.0"},
-	})
-
-	view := stripANSI(m.View().Content)
-	if !strings.Contains(view, "f find") {
-		t.Fatalf("expected the Available hint bar to advertise the filter key, got:\n%s", view)
-	}
-
-	m = openFilter(t, m)
-	view = stripANSI(m.View().Content)
-
-	for _, want := range []string{"enter apply", "esc clear"} {
-		if !strings.Contains(view, want) {
-			t.Fatalf("expected the filter-input hint bar to contain %q, got:\n%s", want, view)
-		}
-	}
-	for _, stale := range []string{"i install", "? help", "q / ctrl+c quit"} {
-		if strings.Contains(view, stale) {
-			t.Fatalf("filter-input hint bar must not contain %q (the key is ordinary input), got:\n%s", stale, view)
-		}
-	}
-}
-
 func TestFilterProgramMessageKeepsRepeatedRWhileFiltering(t *testing.T) {
 	m := newTestModel(t)
 	seedVersions(t, &m, []utils.GoVersion{

@@ -147,7 +147,7 @@ func (t rowTable) render(rowKind mouseActionKind) renderedSurface {
 		})
 		if rowKind == mouseDependencyRow && glyphX < t.width {
 			targets = append(targets, mouseTarget{
-				rect:   cellRect{x: glyphX, y: y, width: 1, height: 1},
+				rect:   cellRect{x: glyphX, y: y, width: min(markWidth, t.width-glyphX), height: 1},
 				action: mouseAction{kind: mouseDependencyMark, index: index},
 			})
 		}

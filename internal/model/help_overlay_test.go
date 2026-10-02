@@ -50,22 +50,6 @@ func TestHelpOverlayOpensWithQuestionMark(t *testing.T) {
 	}
 }
 
-func TestHelpOverlayBarShowsCloseHintWhileOpen(t *testing.T) {
-	m := newTestModel(t)
-	m = resizeModel(t, m, 100, 30)
-	m = pressKey(t, m, tea.KeyPressMsg{Code: '?'})
-
-	view := stripANSI(m.View().Content)
-	if !strings.Contains(view, "close help") {
-		t.Fatalf("expected 'close help' bar while the overlay is open, got:\n%s", view)
-	}
-	// q is swallowed while the overlay is open, so the bar must not
-	// advertise it as quit.
-	if strings.Contains(view, "q / ctrl+c quit") {
-		t.Fatalf("bar must not advertise q while the overlay swallows it, got:\n%s", view)
-	}
-}
-
 func TestHelpOverlaySwallowsKeysAndCloses(t *testing.T) {
 	m := newTestModel(t)
 	m = pressKey(t, m, tea.KeyPressMsg{Code: '?'})

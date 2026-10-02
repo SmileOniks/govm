@@ -7,13 +7,12 @@ import (
 	"github.com/smileoniks-ctrl/govm/internal/prune"
 )
 
-// Mark glyphs rendered in front of every module path: a filled circle
-// for marked rows, an empty one otherwise, so the marked set reads as
-// a checklist. Whether a marked module actually moves is decided by
-// the update plan, not by the glyph.
+// Checkboxes distinguish the marked update set from the cursor highlight.
+// Whether a marked module actually moves is decided by the update plan.
 const (
-	markFilled = "● "
-	markEmpty  = "○ "
+	markFilled = "[●] "
+	markEmpty  = "[○] "
+	markWidth  = 3
 )
 
 // updateDependencyTable re-renders the table from the dependency list

@@ -10,7 +10,9 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/smileoniks-ctrl/govm/internal/config"
 	"github.com/smileoniks-ctrl/govm/internal/deps"
+	"github.com/smileoniks-ctrl/govm/internal/lifecycle"
 	"github.com/smileoniks-ctrl/govm/internal/prune"
+	"github.com/smileoniks-ctrl/govm/internal/styles"
 	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
 
@@ -197,10 +199,10 @@ func TestMouseTableSelectionAfterScroll(t *testing.T) {
 
 			if tab.index == DepsTab {
 				// Bring the ambiguous pair into view using ordinary navigation.
-				for mouseGeometryCursor(m) > 18 {
+				for mouseGeometryCursor(m) > 17 {
 					m = feed(t, m, tea.KeyPressMsg{Code: tea.KeyUp})
 				}
-				for mouseGeometryCursor(m) < 18 {
+				for mouseGeometryCursor(m) < 17 {
 					m = feed(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
 				}
 				for _, index := range []int{17, 18} {
@@ -284,6 +286,213 @@ func mouseGeometryControls(t testing.TB, m Model, labels []string) {
 	}
 }
 
+// Locate the painted brackets independently of the renderer's hit targets.
+func mouseActionButtonRect(t testing.TB, view tea.View, label string) cellRect {
+	t.Helper()
+	_, y := mouseText(t, view, label)
+	line := strings.Split(ansi.Strip(view.Content), "\n")[y]
+	labelStart := strings.Index(line, label)
+	left := strings.LastIndex(line[:labelStart], "[")
+	labelEnd := labelStart + len(label)
+	rightOffset := strings.Index(line[labelEnd:], "]")
+	if left < 0 || rightOffset < 0 {
+		t.Fatalf("button %q has no visible brackets", label)
+	}
+	right := labelEnd + rightOffset
+	return cellRect{
+		x: ansi.StringWidth(line[:left]), y: y,
+		width: ansi.StringWidth(line[left : right+1]), height: 1,
+	}
+}
+
+func TestMouseActionButtonCells(t *testing.T) {
+	for _, theme := range []config.ThemeName{config.ThemeCurrent, config.ThemeLight} {
+		for _, control := range []struct {
+			label string
+			close bool
+		}{
+			{label: "Help ?"},
+			{label: "Close help esc", close: true},
+		} {
+			for cell := range ansi.StringWidth(control.label) + 4 {
+				t.Run(fmt.Sprintf("%s/%s/cell-%d", theme, control.label, cell), func(t *testing.T) {
+					m := newTestModel(t)
+					m.settings.values.Theme = theme
+					m.applyRuntimeTheme()
+					m = mouseSized(t, m, 130, 30)
+					if control.close {
+						m = feed(t, m, tea.KeyPressMsg{Code: '?'})
+					}
+					v := m.View()
+					r := mouseActionButtonRect(t, v, control.label)
+					m, _ = mouseAt(t, m, v, tea.MouseClickMsg{X: r.x + cell, Y: r.y, Button: tea.MouseLeft})
+					if m.HelpVisible == control.close {
+						t.Fatal("click on button text, brackets, or padding did not toggle Help")
+					}
+				})
+			}
+		}
+		t.Run(fmt.Sprintf("%s/gap", theme), func(t *testing.T) {
+			m := newTestModel(t)
+			m.settings.values.Theme = theme
+			m.applyRuntimeTheme()
+			m = mouseSized(t, m, 130, 30)
+			v := m.View()
+			r := mouseActionButtonRect(t, v, "Help ?")
+			x, y := r.x+r.width, r.y
+			if got := ansi.Cut(strings.Split(v.Content, "\n")[y], x, x+1); ansi.Strip(got) != " " {
+				t.Fatal("fixture does not point into the gap")
+			}
+			m, cmd := mouseAt(t, m, v, tea.MouseClickMsg{X: x, Y: y, Button: tea.MouseLeft})
+			if cmd != nil || m.inputContext() != inputTab || m.HelpVisible {
+				t.Fatal("button gap dispatched an action")
+			}
+		})
+	}
+}
+
+func TestMouseActionButtonWrappedRows(t *testing.T) {
+	labels := []string{"Install i", "Use u", "Delete d", "Refresh r", "Find f", "Help ?", "Quit q / ctrl+c"}
+	for _, size := range [][2]int{{64, 20}, {80, 24}, {129, 30}, {130, 30}} {
+		for _, theme := range []config.ThemeName{config.ThemeCurrent, config.ThemeLight} {
+			t.Run(fmt.Sprintf("%dx%d/%s", size[0], size[1], theme), func(t *testing.T) {
+				for _, tab := range []int{AvailableTab, DepsTab} {
+					for _, label := range []string{"Help ?", "Find f"} {
+						if tab == DepsTab && label == "Find f" {
+							continue
+						}
+						for _, offset := range []int{0, 1, 2, -2, -1} {
+							m := newTestModel(t)
+							m.settings.values.Theme = theme
+							m.applyRuntimeTheme()
+							m.CurrentTab = tab
+							m = mouseSized(t, m, size[0], size[1])
+							v := m.View()
+							mouseGeometryBounds(t, v, size[0], size[1])
+							help := mouseActionButtonRect(t, v, "Help ?")
+							quit := mouseActionButtonRect(t, v, "Quit q / ctrl+c")
+							if help.y != quit.y {
+								t.Fatal("Help and Quit should remain together on one row")
+							}
+							if tab == AvailableTab {
+								mouseGeometryControls(t, m, labels)
+								first := mouseActionButtonRect(t, v, labels[0])
+								last := mouseActionButtonRect(t, v, labels[len(labels)-1])
+								if size[0] == 130 && first.y != last.y {
+									t.Fatal("wide Available footer should fit in one row")
+								}
+								if size[0] == 64 && last.y-first.y != 1 {
+									t.Fatal("64-column Available footer should fit in two rows")
+								}
+								if size[0] == 80 && first.y == last.y {
+									t.Fatal("80-column Available footer should wrap")
+								}
+							}
+							r := mouseActionButtonRect(t, v, label)
+							if offset < 0 {
+								offset += r.width
+							}
+							m, _ = mouseAt(t, m, v, tea.MouseClickMsg{X: r.x + offset, Y: r.y, Button: tea.MouseLeft})
+							if label == "Help ?" && !m.HelpVisible {
+								t.Fatal("wrapped Help button did not open Help")
+							}
+							if label == "Find f" && !m.filterInputActive() {
+								t.Fatal("wrapped Find button did not open filter")
+							}
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestMouseActionButtonContextTransitions(t *testing.T) {
+	m := newTestModel(t)
+	seedVersions(t, &m, []utils.GoVersion{{Version: "1.25.0", Installed: true, Path: "/go/1.25.0"}})
+	deletes := 0
+	m = m.BindVersionOperations(VersionOperations{Delete: func(_ context.Context, version string) (lifecycle.DeletionResult, error) {
+		deletes++
+		return lifecycle.DeletionResult{Version: version}, nil
+	}})
+	m = mouseSized(t, m, 64, 20)
+	clickButton := func(label string, offset int) {
+		t.Helper()
+		v := m.View()
+		r := mouseActionButtonRect(t, v, label)
+		if offset < 0 {
+			offset += r.width
+		}
+		var cmd tea.Cmd
+		m, cmd = mouseAt(t, m, v, tea.MouseClickMsg{X: r.x + offset, Y: r.y, Button: tea.MouseLeft})
+		m = mouseRunCmd(t, m, cmd)
+	}
+	clickButton("Find f", 0)
+	if !m.filterInputActive() {
+		t.Fatal("Find bracket did not open the filter")
+	}
+	for _, key := range "q?" {
+		updated, cmd := m.Update(tea.KeyPressMsg{Code: key, Text: string(key)})
+		m = updated.(Model)
+		if cmd != nil {
+			if _, quit := cmd().(tea.QuitMsg); quit {
+				t.Fatal("filter text dispatched Quit")
+			}
+		}
+	}
+	if m.HelpVisible || m.projection.availableModel().FilterInput.Value() != "q?" {
+		t.Fatal("filter did not capture command keys")
+	}
+	clickButton("Clear esc", 1)
+	if m.inputContext() != inputTab || m.projection.availableFilterApplied() {
+		t.Fatal("Clear padding did not restore normal context")
+	}
+	clickButton("Delete d", -1)
+	if m.inputContext() != inputDeleteConfirm || deletes != 0 {
+		t.Fatal("Delete must only open confirmation")
+	}
+	clickButton("Cancel n", -2)
+	version, ok := m.projection.lookup("1.25.0")
+	if m.inputContext() != inputTab || deletes != 0 || !ok || !version.Installed {
+		t.Fatal("Cancel deleted the version or retained confirmation")
+	}
+}
+
+func TestMouseActionButtonNarrowAndDisabled(t *testing.T) {
+	for _, binding := range []keyBinding{
+		{keys: "r", mouseControls: mouseControls("r 界refresh", tea.KeyPressMsg{Code: 'r'})},
+		{keys: "enter", mouseControls: mouseControls("enter check", tea.KeyPressMsg{Code: tea.KeyEnter})},
+	} {
+		t.Run(binding.keys, func(t *testing.T) {
+			sections := []helpSection{{bindings: []keyBinding{binding}}}
+			for _, width := range []int{-1, 0, 4, 5, 6, 10} {
+				t.Run(fmt.Sprint(width), func(t *testing.T) {
+					for _, checking := range []bool{false, true} {
+						surface := renderControls(styles.NewTheme(config.ThemeCurrent), sections, width, checking)
+						if width < 5 {
+							if surface.content != "" || len(surface.targets) != 0 {
+								t.Fatal("unsupported button width should be empty")
+							}
+							continue
+						}
+						mouseGeometryBounds(t, tea.NewView(surface.content), width, 1)
+						if checking && len(surface.targets) != 0 {
+							t.Fatal("checking button should have no mouse targets")
+						}
+						callback := mouseCallback(surface, mouseActionMsg{})
+						for x := range ansi.StringWidth(surface.content) {
+							cmd := callback(tea.MouseClickMsg{X: x, Y: 0, Button: tea.MouseLeft})
+							if (cmd == nil) != checking {
+								t.Fatalf("checking=%v at (%d,0): clickable=%v", checking, x, cmd != nil)
+							}
+						}
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestMouseViewportGeometry(t *testing.T) {
 	for _, size := range [][2]int{{64, 20}, {80, 24}, {129, 30}, {130, 30}} {
 		for _, theme := range []config.ThemeName{config.ThemeCurrent, config.ThemeLight} {
@@ -296,7 +505,7 @@ func TestMouseViewportGeometry(t *testing.T) {
 					m.ShimPathWarning = "GoVM is not in your PATH.\n\x1b[33m界 e\u0301: add the shim directory to PATH\x1b[0m"
 					return mouseSized(t, m, size[0], size[1])
 				}
-				globals := []string{"? help", "q / ctrl+c quit"}
+				globals := []string{"Help ?", "Quit q / ctrl+c"}
 				for _, surface := range []struct {
 					name   string
 					build  func(*testing.T, Model) Model
@@ -304,7 +513,7 @@ func TestMouseViewportGeometry(t *testing.T) {
 				}{
 					{
 						name: "Available", build: func(_ *testing.T, m Model) Model { return m },
-						labels: []string{"i install", "u use", "d delete", "r refresh", "f find"},
+						labels: []string{"Install i", "Use u", "Delete d", "Refresh r", "Find f"},
 					},
 					{
 						name: "Installed summary", build: func(t *testing.T, m Model) Model {
@@ -316,33 +525,33 @@ func TestMouseViewportGeometry(t *testing.T) {
 								InstalledBytes: 4096, ReclaimableBytes: 2048, DownloadBytes: 1024,
 							}})
 						},
-						labels: []string{"u use", "d delete", "p prune", "r refresh"},
+						labels: []string{"Use u", "Delete d", "Prune p", "Refresh r"},
 					},
 					{
 						name: "Deps", build: func(t *testing.T, m Model) Model {
 							return loadDeps(t, m, mouseGeometryDependencies(45))
 						},
-						labels: []string{"r check updates", "space mark", "a mark all / none", "u update", "b backups"},
+						labels: []string{"Check updates r", "Mark space", "Mark all / none a", "Update u", "Backups b"},
 					},
 					{
 						name: "Settings", build: func(t *testing.T, m Model) Model {
 							m, _ = mouseClick(t, m, "Settings")
 							return m
 						},
-						labels: []string{"↑ previous", "↓ next", "enter / space toggle or edit", "← previous", "→ next"},
+						labels: []string{"Previous ↑", "Next ↓", "Toggle or edit enter / space", "Previous ←", "Next →"},
 					},
 					{
 						name: "Applied long filter", build: func(t *testing.T, m Model) Model {
 							return applyFilter(t, m, strings.Repeat("界e\u0301", 35))
 						},
-						labels: []string{"i install", "u use", "d delete", "r refresh", "f find", "esc clear"},
+						labels: []string{"Install i", "Use u", "Delete d", "Refresh r", "Find f", "Clear esc"},
 					},
 					{
 						name: "Available inline delete", build: func(t *testing.T, m Model) Model {
 							m = feed(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
 							return feed(t, m, tea.KeyPressMsg{Code: 'd'})
 						},
-						labels: []string{"y confirm", "n cancel"},
+						labels: []string{"Confirm y", "Cancel n"},
 					},
 					{
 						name: "Installed inline delete", build: func(t *testing.T, m Model) Model {
@@ -350,22 +559,33 @@ func TestMouseViewportGeometry(t *testing.T) {
 							m = feed(t, m, tea.KeyPressMsg{Code: tea.KeyDown})
 							return feed(t, m, tea.KeyPressMsg{Code: 'd'})
 						},
-						labels: []string{"y confirm", "n cancel"},
+						labels: []string{"Confirm y", "Cancel n"},
 					},
 				} {
 					t.Run(surface.name, func(t *testing.T) {
 						m := surface.build(t, base(t))
 						labels := append(append([]string{}, surface.labels...), globals...)
 						mouseGeometryControls(t, m, labels)
+						help := mouseActionButtonRect(t, m.View(), globals[0])
+						quit := mouseActionButtonRect(t, m.View(), globals[1])
+						if help.y != quit.y {
+							t.Fatal("Help and Quit should remain together on one row")
+						}
+						if size[0] == 64 && (surface.name == "Available" || surface.name == "Deps" || surface.name == "Settings") {
+							first := mouseActionButtonRect(t, m.View(), surface.labels[0])
+							if quit.y-first.y > 1 {
+								t.Fatal("compact footer should fit in at most two rows")
+							}
+						}
 						for _, label := range []string{"Available", "Installed", "Deps", "Settings"} {
 							mouseText(t, m.View(), label)
 						}
 						mouseText(t, m.View(), "GoVM is not in your PATH.")
 						mouseText(t, m.View(), "界 e\u0301")
 						before := m.inputContext()
-						m, _ = mouseClick(t, m, "? help")
-						mouseGeometryControls(t, m, []string{"esc close help", "ctrl+c quit"})
-						m, _ = mouseClick(t, m, "esc close help")
+						m, _ = mouseClick(t, m, "Help ?")
+						mouseGeometryControls(t, m, []string{"Close help esc", "Quit ctrl+c"})
+						m, _ = mouseClick(t, m, "Close help esc")
 						if m.HelpVisible || m.inputContext() != before {
 							t.Fatal("Close did not restore the underlying surface")
 						}
@@ -374,12 +594,12 @@ func TestMouseViewportGeometry(t *testing.T) {
 
 				t.Run("Filter editor", func(t *testing.T) {
 					m := typeIntoFilter(t, openFilter(t, base(t)), strings.Repeat("界e\u0301", 35))
-					mouseGeometryControls(t, m, []string{"enter apply", "esc clear", "tab next tab", "ctrl+c quit"})
-					m, _ = mouseClick(t, m, "enter apply")
+					mouseGeometryControls(t, m, []string{"Apply enter", "Clear esc", "Next tab tab", "Quit ctrl+c"})
+					m, _ = mouseClick(t, m, "Apply enter")
 					if m.filterInputActive() {
 						t.Fatal("visible Apply did not commit the filter")
 					}
-					m, _ = mouseClick(t, m, "esc clear")
+					m, _ = mouseClick(t, m, "Clear esc")
 					if m.projection.availableFilterApplied() {
 						t.Fatal("visible Clear did not remove the filter")
 					}
@@ -426,11 +646,11 @@ func TestMouseViewportGeometry(t *testing.T) {
 				} {
 					t.Run(modal.name, func(t *testing.T) {
 						m := modal.build(t, base(t))
-						mouseGeometryControls(t, m, append(append([]string{}, modal.labels...), "? help", "q quit"))
+						mouseGeometryControls(t, m, append(append([]string{}, modal.labels...), "Help ?", "Quit q"))
 						before := m.inputContext()
-						m, _ = mouseClick(t, m, "? help")
-						mouseGeometryControls(t, m, []string{"esc close help", "ctrl+c quit"})
-						m, _ = mouseClick(t, m, "esc close help")
+						m, _ = mouseClick(t, m, "Help ?")
+						mouseGeometryControls(t, m, []string{"Close help esc", "Quit ctrl+c"})
+						m, _ = mouseClick(t, m, "Close help esc")
 						if m.HelpVisible || m.inputContext() != before {
 							t.Fatal("Close did not restore the modal context")
 						}
@@ -446,14 +666,14 @@ func TestMouseViewportGeometry(t *testing.T) {
 					row    settingsRowKind
 					labels []string
 				}{
-					{name: "Backup limit editor", row: settingRowDepsBackups, labels: []string{"enter save", "esc cancel"}},
-					{name: "Source editor", row: settingRowDistributionSource, labels: []string{"enter check and save", "r reset to official", "esc cancel"}},
+					{name: "Backup limit editor", row: settingRowDepsBackups, labels: []string{"Save enter", "Cancel esc"}},
+					{name: "Source editor", row: settingRowDistributionSource, labels: []string{"Check and save enter", "Reset to official r", "Cancel esc"}},
 				} {
 					t.Run(editor.name, func(t *testing.T) {
 						m := focusSetting(t, base(t), editor.row)
 						m = feed(t, m, tea.KeyPressMsg{Code: tea.KeyEnter})
 						mouseGeometryControls(t, m, editor.labels)
-						m, _ = mouseClick(t, m, "esc cancel")
+						m, _ = mouseClick(t, m, "Cancel esc")
 						if m.inputContext() == inputSettingsInput {
 							t.Fatal("visible Cancel left the editor open")
 						}
@@ -488,8 +708,8 @@ func TestMouseViewportGeometry(t *testing.T) {
 			if m.CurrentTab != SettingsTab {
 				t.Fatal("resizing to a supported viewport did not restore tab clicks")
 			}
-			m, _ = mouseClick(t, m, "? help")
-			m, _ = mouseClick(t, m, "esc close help")
+			m, _ = mouseClick(t, m, "Help ?")
+			m, _ = mouseClick(t, m, "Close help esc")
 			if m.HelpVisible {
 				t.Fatal("resizing to a supported viewport did not restore Close")
 			}

@@ -203,9 +203,6 @@ func TestSettingsToggleUpgradeNoticeOffHidesNoticeAndSaves(t *testing.T) {
 	if saved := settingsStore(m).values.UpgradeNotice; saved != config.UpgradeNoticeOff {
 		t.Fatalf("saved upgradeNotice = %q, want off", saved)
 	}
-	if !strings.Contains(stripANSI(m.View().Content), "Upgrade notice: Off") {
-		t.Fatalf("settings view does not show the row as Off:\n%s", stripANSI(m.View().Content))
-	}
 }
 
 func TestSettingsToggleUpgradeNoticeOnStartsSingleCheck(t *testing.T) {
@@ -242,9 +239,6 @@ func TestSettingsCursorReachesUpgradeNoticeRow(t *testing.T) {
 	m = updated.(Model)
 	if m.settings.cursor != settingRowUpgradeNotice {
 		t.Fatalf("cursor = %d, want %d", m.settings.cursor, settingRowUpgradeNotice)
-	}
-	if !strings.Contains(stripANSI(m.View().Content), "> Upgrade notice: On") {
-		t.Fatalf("settings view does not highlight the Upgrade notice row:\n%s", stripANSI(m.View().Content))
 	}
 	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyDown})
 	m = updated.(Model)

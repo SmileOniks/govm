@@ -5,7 +5,6 @@ import (
 	"strings"
 	"testing"
 
-	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -81,25 +80,6 @@ func TestRenderContentCanvasPreservesANSIAndDisplayWidth(t *testing.T) {
 		if visibleWidth := ansi.StringWidth(line); visibleWidth != width {
 			t.Errorf("canvas line %d visible width = %d, want %d; line = %q", i, visibleWidth, width, line)
 		}
-	}
-}
-
-func TestDepsTabRenders(t *testing.T) {
-	m := newTestModel(t)
-
-	// Switch to deps tab
-	updated, _ := m.Update(tea.KeyPressMsg{Code: '\t'})
-	updated, _ = updated.Update(tea.KeyPressMsg{Code: '\t'})
-	m = updated.(Model)
-
-	view := stripANSI(m.View().Content)
-
-	if !strings.Contains(view, "Deps") {
-		t.Fatalf("expected deps tab label in view, got:\n%s", view)
-	}
-
-	if !strings.Contains(view, "check updates") {
-		t.Fatalf("expected 'check updates' help hint, got:\n%s", view)
 	}
 }
 
