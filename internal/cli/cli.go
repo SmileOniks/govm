@@ -7,8 +7,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/smileoniks-ctrl/govm/internal/install"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/install"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 // installFunc mirrors install.(*Service).Install. It is parameterised so

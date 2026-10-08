@@ -8,10 +8,10 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/deps"
-	"github.com/smileoniks-ctrl/govm/internal/install"
-	"github.com/smileoniks-ctrl/govm/internal/lifecycle"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/deps"
+	"github.com/SmileOniks/govm/internal/install"
+	"github.com/SmileOniks/govm/internal/lifecycle"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 func TestUpdateKeyStartsFreshPreflight(t *testing.T) {

@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/prune"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/prune"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 func TestInstalledTabSummaryInterruptedDownloads(t *testing.T) {

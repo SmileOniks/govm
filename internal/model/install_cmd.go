@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/smileoniks-ctrl/govm/internal/install"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/install"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 // installTimeout is the maximum wall-clock budget granted to a single

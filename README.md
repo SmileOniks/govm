@@ -39,7 +39,7 @@ GoVM is a modern tool for managing multiple Go versions on your system. It featu
 ### Install
 
 ```bash
-go install github.com/smileoniks-ctrl/govm@latest
+go install github.com/SmileOniks/govm@latest
 ```
 
 Then in a new terminal run:
@@ -410,7 +410,7 @@ So you never need to manually update environment variables or source scripts whe
 
 ```bash
 # Clone the repository
-git clone https://github.com/smileoniks-ctrl/govm.git
+git clone https://github.com/SmileOniks/govm.git
 cd govm
 
 # Build and install
@@ -424,7 +424,7 @@ Then place the binary somewhere in your PATH.
 Add Homebrew repository to the system:
 
 ```bash
-brew tap smileoniks-ctrl/tap
+brew tap SmileOniks/tap
 ```
 
 You can then install your package with:

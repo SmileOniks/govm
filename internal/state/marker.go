@@ -13,7 +13,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/smileoniks-ctrl/govm/internal/version"
+	"github.com/SmileOniks/govm/internal/version"
 )
 
 const (

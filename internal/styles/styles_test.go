@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"charm.land/lipgloss/v2"
-	"github.com/smileoniks-ctrl/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/config"
 )
 
 var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)

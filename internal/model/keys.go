@@ -2,8 +2,8 @@ package model
 
 import (
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/styles"
 )
 
 // handleKey processes a key press in the main TUI surface: the Input

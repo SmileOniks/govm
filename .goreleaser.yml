@@ -15,7 +15,7 @@ builds:
   env:
   - CGO_ENABLED=0
   ldflags:
-  - -s -w -X github.com/smileoniks-ctrl/govm/internal/utils.Version={{.Version}}
+  - -s -w -X github.com/SmileOniks/govm/internal/utils.Version={{.Version}}
 release:
   prerelease: auto
 universal_binaries:
@@ -38,11 +38,11 @@ checksum:
 
 homebrew_casks:
   - name: "{{ .ProjectName }}"
-    homepage: "https://github.com/smileoniks-ctrl/govm"
+    homepage: "https://github.com/SmileOniks/govm"
     description: "GoVM - Go Version Manager"
     license: "MIT"
     repository:
-      owner: "smileoniks-ctrl"
+      owner: "SmileOniks"
       name: "homebrew-tap"
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     commit_author:

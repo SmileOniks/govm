@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/SmileOniks/govm/internal/styles"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
 )
 
 func TestMinimumViewportShowsWarningWithinTerminalBounds(t *testing.T) {

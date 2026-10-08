@@ -27,7 +27,7 @@ func TestLatestReleaseReturnsTag(t *testing.T) {
 	var seen http.Request
 	server := newServer(t, http.StatusOK, `{"tag_name":"v0.2.5","draft":false,"prerelease":false}`, &seen)
 
-	client := NewClient(http.DefaultClient, server.URL, "smileoniks-ctrl/govm", "govm/0.2.4")
+	client := NewClient(http.DefaultClient, server.URL, "SmileOniks/govm", "govm/0.2.4")
 	tag, err := client.LatestRelease(context.Background())
 	if err != nil {
 		t.Fatalf("LatestRelease() error = %v", err)
@@ -35,7 +35,7 @@ func TestLatestReleaseReturnsTag(t *testing.T) {
 	if tag != "v0.2.5" {
 		t.Fatalf("LatestRelease() = %q, want v0.2.5", tag)
 	}
-	if seen.URL.Path != "/repos/smileoniks-ctrl/govm/releases/latest" {
+	if seen.URL.Path != "/repos/SmileOniks/govm/releases/latest" {
 		t.Fatalf("request path = %q", seen.URL.Path)
 	}
 	if got := seen.Header.Get("Accept"); got != "application/vnd.github+json" {

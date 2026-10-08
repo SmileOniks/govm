@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/config"
 )
 
 func TestSettingsDepsBackupLimitShortcutControlsAndSaves(t *testing.T) {

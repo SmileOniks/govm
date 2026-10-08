@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 // DefaultAPIBaseURL is the public GitHub REST API root.

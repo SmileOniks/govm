@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"charm.land/lipgloss/v2"
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/styles"
 )
 
 func renderDepsBackupLimitDialog(t styles.Theme, settings settingsTab, viewport viewportSize) renderedSurface {

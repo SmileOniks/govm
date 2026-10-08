@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/deps"
+	"github.com/SmileOniks/govm/internal/deps"
 )
 
 type dependencyExecutionErrMsg struct {

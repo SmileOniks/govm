@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/styles"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
 )
 
 func TestInstallBarFill(t *testing.T) {

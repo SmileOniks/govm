@@ -8,8 +8,8 @@ import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/table"
 	"charm.land/lipgloss/v2"
+	"github.com/SmileOniks/govm/internal/styles"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
 )
 
 // tableStyles leaves spacing to the cells; the selected-row wrapper only paints

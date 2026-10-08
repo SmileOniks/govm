@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/smileoniks-ctrl/govm/internal/deps"
+	"github.com/SmileOniks/govm/internal/deps"
 )
 
 func selectiveDeps() []deps.ModuleDependency {

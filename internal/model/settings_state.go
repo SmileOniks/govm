@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"charm.land/bubbles/v2/textinput"
-	"github.com/smileoniks-ctrl/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/config"
 )
 
 // settingsRowKind identifies a settings row by the setting it holds,

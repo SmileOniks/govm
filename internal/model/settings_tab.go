@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 // This file is the single entry of the Settings tab module (see

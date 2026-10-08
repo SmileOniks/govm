@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/smileoniks-ctrl/govm/internal/state"
+	"github.com/SmileOniks/govm/internal/state"
 )
 
 // Phase identifies the durable step at which an operation failed.

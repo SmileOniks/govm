@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/smileoniks-ctrl/govm/internal/deps"
+	"github.com/SmileOniks/govm/internal/deps"
 )
 
 func writeFile(t *testing.T, dir, name, content string) {

@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 // LoadVersionCatalog orchestrates the complete version-loading flow:

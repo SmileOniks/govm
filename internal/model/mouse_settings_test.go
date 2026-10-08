@@ -9,12 +9,12 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/SmileOniks/govm/internal/application"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/loader"
+	"github.com/SmileOniks/govm/internal/upgrade"
+	"github.com/SmileOniks/govm/internal/utils"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/smileoniks-ctrl/govm/internal/application"
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/loader"
-	"github.com/smileoniks-ctrl/govm/internal/upgrade"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
 
 // Locate a value on the actual rendered settings row, rather than looking for

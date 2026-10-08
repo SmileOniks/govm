@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/lifecycle"
+	"github.com/SmileOniks/govm/internal/lifecycle"
 )
 
 type activateFunc func(context.Context, string) (lifecycle.ActivationResult, error)

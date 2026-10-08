@@ -5,9 +5,9 @@ import (
 
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/table"
-	"github.com/smileoniks-ctrl/govm/internal/loader"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/loader"
+	"github.com/SmileOniks/govm/internal/styles"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 // versionCatalogErrorKind classifies a versionCatalogError into one of

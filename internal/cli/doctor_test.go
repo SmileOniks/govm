@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/SmileOniks/govm/internal/doctor"
 	"github.com/charmbracelet/colorprofile"
-	"github.com/smileoniks-ctrl/govm/internal/doctor"
 )
 
 // newDoctorApp wires a fake Doctor operation. The output goes through

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/smileoniks-ctrl/govm/internal/adapter/godev"
-	"github.com/smileoniks-ctrl/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/adapter/godev"
+	"github.com/SmileOniks/govm/internal/config"
 )
 
 // defaultSourceTimeout bounds the release-catalog probe so an

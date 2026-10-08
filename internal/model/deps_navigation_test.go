@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	coredeps "github.com/smileoniks-ctrl/govm/internal/deps"
+	coredeps "github.com/SmileOniks/govm/internal/deps"
 )
 
 func TestDepsTabArrowAndVimKeysMoveTableCursor(t *testing.T) {

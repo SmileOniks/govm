@@ -9,8 +9,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/SmileOniks/govm/internal/paths"
 	"github.com/gofrs/flock"
-	"github.com/smileoniks-ctrl/govm/internal/paths"
 )
 
 type testRecoveryHandler struct {

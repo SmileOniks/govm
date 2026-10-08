@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/deps"
+	"github.com/SmileOniks/govm/internal/deps"
 )
 
 func TestResetUpdateConfirmationClearsDialogAndEntries(t *testing.T) {

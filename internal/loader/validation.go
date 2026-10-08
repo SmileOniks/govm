@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 func ValidateCatalogVersions(versions []utils.GoVersion) error {

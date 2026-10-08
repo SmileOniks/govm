@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/smileoniks-ctrl/govm/internal/deps"
+	"github.com/SmileOniks/govm/internal/deps"
 )
 
 // DepsService encapsulates the CLI dependency workflow.
