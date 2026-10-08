@@ -3,8 +3,8 @@ package model
 import (
 	"testing"
 
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 func TestDependenciesMsgPopulatesTable(t *testing.T) {

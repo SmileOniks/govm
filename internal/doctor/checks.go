@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/state"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
-	"github.com/smileoniks-ctrl/govm/internal/version"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/state"
+	"github.com/SmileOniks/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/version"
 )
 
 // goVersionTimeout bounds the `go version` probe so a hung shim cannot

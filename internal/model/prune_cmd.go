@@ -6,7 +6,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/prune"
+	"github.com/SmileOniks/govm/internal/prune"
 )
 
 // Wall-clock budgets granted to a single prune operation. Preview and

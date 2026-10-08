@@ -4,8 +4,8 @@ import (
 	"strconv"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/deps"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
+	"github.com/SmileOniks/govm/internal/deps"
+	"github.com/SmileOniks/govm/internal/styles"
 )
 
 // Bubble Tea v2.0.10's renderer equality ignores OnMouse and retains its previous

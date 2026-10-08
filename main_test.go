@@ -11,10 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/smileoniks-ctrl/govm/internal/application"
-	"github.com/smileoniks-ctrl/govm/internal/cli"
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/application"
+	"github.com/SmileOniks/govm/internal/cli"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 func TestHandleCommandLineSourceReturnsNonZeroOnOperationFailure(t *testing.T) {

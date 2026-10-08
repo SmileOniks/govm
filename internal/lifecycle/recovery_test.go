@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/smileoniks-ctrl/govm/internal/state"
+	"github.com/SmileOniks/govm/internal/state"
 )
 
 func TestActivationRecoveryRollsBackEveryPrecommitPhase(t *testing.T) {

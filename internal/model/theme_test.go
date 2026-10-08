@@ -6,8 +6,8 @@ import (
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/styles"
 )
 
 func TestSettingsDepsBackupLimitInputFollowsTheme(t *testing.T) {

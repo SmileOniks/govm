@@ -7,8 +7,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/SmileOniks/govm/internal/paths"
 	"github.com/gofrs/flock"
-	"github.com/smileoniks-ctrl/govm/internal/paths"
 )
 
 // Warning is a non-fatal condition discovered while recovering state.

@@ -71,11 +71,11 @@ tests alone do not exercise the renderer's last-frame callback lifecycle.
 
 ## Report an Issue
 
-If you have run into a bug or want to discuss a new feature, please [file an issue](https://github.com/smileoniks-ctrl/govm/issues).
+If you have run into a bug or want to discuss a new feature, please [file an issue](https://github.com/SmileOniks/govm/issues).
 
 ## Contributing Code with Pull Requests
 
-GoVM uses [Github pull requests](https://github.com/smileoniks-ctrl/govm/pulls). Feel free to fork, hack away at your changes and submit.
+GoVM uses [Github pull requests](https://github.com/SmileOniks/govm/pulls). Feel free to fork, hack away at your changes and submit.
 
 ### Requirements
 
@@ -86,4 +86,4 @@ GoVM strives to have a consistent set of documentation that matches the command 
 
 ## Licensing
 
-See the [LICENSE](https://github.com/smileoniks-ctrl/govm/blob/main/LICENSE) file for our project's licensing. We will ask you to confirm the licensing of your contribution.
+See the [LICENSE](https://github.com/SmileOniks/govm/blob/main/LICENSE) file for our project's licensing. We will ask you to confirm the licensing of your contribution.

@@ -3,8 +3,8 @@ package model
 import (
 	"strings"
 
+	"github.com/SmileOniks/govm/internal/styles"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
 )
 
 const maxDependencyListLines = 6

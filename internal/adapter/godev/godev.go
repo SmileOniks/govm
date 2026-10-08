@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/smileoniks-ctrl/govm/internal/loader"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/loader"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 // Client implements loader.ReleaseSource by fetching the go.dev

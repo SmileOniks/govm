@@ -2,7 +2,7 @@ package model
 
 import (
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/deps"
+	"github.com/SmileOniks/govm/internal/deps"
 )
 
 // This file is the Bubbletea adapter for the standalone (non-cycle)

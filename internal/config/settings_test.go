@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/smileoniks-ctrl/govm/internal/paths"
+	"github.com/SmileOniks/govm/internal/paths"
 )
 
 func TestDefaultSettings(t *testing.T) {

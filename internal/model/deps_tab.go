@@ -4,9 +4,9 @@ import (
 	"fmt"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/deps"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/deps"
+	"github.com/SmileOniks/govm/internal/styles"
 )
 
 // This file is the single entry of the Deps tab module. The Model

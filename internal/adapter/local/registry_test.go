@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/smileoniks-ctrl/govm/internal/paths"
+	"github.com/SmileOniks/govm/internal/paths"
 )
 
 func TestFilesystemRegistryListSortsToolchains(t *testing.T) {

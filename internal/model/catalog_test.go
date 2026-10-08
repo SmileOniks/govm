@@ -9,11 +9,11 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/install"
-	"github.com/smileoniks-ctrl/govm/internal/lifecycle"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/install"
+	"github.com/SmileOniks/govm/internal/lifecycle"
+	"github.com/SmileOniks/govm/internal/styles"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 // projectionVersions snapshots the model's catalog into a VersionsMsg,

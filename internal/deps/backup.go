@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/smileoniks-ctrl/govm/internal/paths"
+	"github.com/SmileOniks/govm/internal/paths"
 )
 
 const (

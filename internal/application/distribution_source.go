@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/loader"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/loader"
 )
 
 type SettingsStore interface {

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/loader"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/loader"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 type fakeSettingsStore struct {

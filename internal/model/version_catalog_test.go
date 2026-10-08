@@ -6,9 +6,9 @@ import (
 
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/table"
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/styles"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 var (

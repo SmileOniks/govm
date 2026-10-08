@@ -6,10 +6,10 @@ import (
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/application"
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/deps"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
+	"github.com/SmileOniks/govm/internal/application"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/deps"
+	"github.com/SmileOniks/govm/internal/styles"
 )
 
 type changeDistributionSourceFunc func(context.Context, string) (application.DistributionSourceResult, error)

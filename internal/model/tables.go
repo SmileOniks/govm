@@ -2,9 +2,9 @@ package model
 
 import (
 	"charm.land/bubbles/v2/table"
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/deps"
-	"github.com/smileoniks-ctrl/govm/internal/prune"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/deps"
+	"github.com/SmileOniks/govm/internal/prune"
 )
 
 // Checkboxes distinguish the marked update set from the cursor highlight.

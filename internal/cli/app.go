@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/smileoniks-ctrl/govm/internal/adapter/local"
-	"github.com/smileoniks-ctrl/govm/internal/application"
-	"github.com/smileoniks-ctrl/govm/internal/deps"
-	"github.com/smileoniks-ctrl/govm/internal/doctor"
-	"github.com/smileoniks-ctrl/govm/internal/lifecycle"
-	"github.com/smileoniks-ctrl/govm/internal/paths"
-	"github.com/smileoniks-ctrl/govm/internal/prune"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/adapter/local"
+	"github.com/SmileOniks/govm/internal/application"
+	"github.com/SmileOniks/govm/internal/deps"
+	"github.com/SmileOniks/govm/internal/doctor"
+	"github.com/SmileOniks/govm/internal/lifecycle"
+	"github.com/SmileOniks/govm/internal/paths"
+	"github.com/SmileOniks/govm/internal/prune"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 // loadCatalogFunc returns the available Go version catalog. The CLI

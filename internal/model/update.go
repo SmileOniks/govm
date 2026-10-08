@@ -5,7 +5,7 @@ import (
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
+	"github.com/SmileOniks/govm/internal/styles"
 )
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

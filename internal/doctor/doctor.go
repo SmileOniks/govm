@@ -18,9 +18,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/smileoniks-ctrl/govm/internal/paths"
-	"github.com/smileoniks-ctrl/govm/internal/prune"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/paths"
+	"github.com/SmileOniks/govm/internal/prune"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 // Verdict is the outcome of one Check. Only VerdictFail affects the

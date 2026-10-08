@@ -9,10 +9,10 @@ import (
 	"charm.land/bubbles/v2/cursor"
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
+	"github.com/SmileOniks/govm/internal/deps"
+	"github.com/SmileOniks/govm/internal/lifecycle"
+	"github.com/SmileOniks/govm/internal/utils"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/smileoniks-ctrl/govm/internal/deps"
-	"github.com/smileoniks-ctrl/govm/internal/lifecycle"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
 )
 
 func mouseSized(t testing.TB, m Model, w, h int) Model {

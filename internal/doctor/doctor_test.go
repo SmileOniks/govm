@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/smileoniks-ctrl/govm/internal/paths"
+	"github.com/SmileOniks/govm/internal/paths"
 )
 
 // fixture is a temp-root govm layout plus a Deps value pointing at it.

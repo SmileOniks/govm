@@ -3,8 +3,8 @@ package loader
 import (
 	"context"
 
-	"github.com/smileoniks-ctrl/govm/internal/adapter/local"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/adapter/local"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 // VersionCatalog is the complete domain result of loading available

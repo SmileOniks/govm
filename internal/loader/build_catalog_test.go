@@ -3,7 +3,7 @@ package loader
 import (
 	"testing"
 
-	"github.com/smileoniks-ctrl/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/config"
 )
 
 // These cases came from internal/utils, which held a second copy of the

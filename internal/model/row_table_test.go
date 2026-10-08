@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"charm.land/bubbles/v2/table"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/styles"
 	"github.com/charmbracelet/x/ansi"
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/styles"
 )
 
 func TestRowTableVisibleSelection(t *testing.T) {

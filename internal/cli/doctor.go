@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"charm.land/lipgloss/v2"
-	"github.com/smileoniks-ctrl/govm/internal/doctor"
+	"github.com/SmileOniks/govm/internal/doctor"
 )
 
 // Doctor runs the read-only diagnostics and renders the Report in the

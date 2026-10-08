@@ -3,7 +3,7 @@ package model
 import (
 	"testing"
 
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 // TestRefreshClearsPendingRefilterState regression-tests a memory leak where

@@ -4,7 +4,7 @@ import (
 	"image/color"
 
 	"charm.land/lipgloss/v2"
-	"github.com/smileoniks-ctrl/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/config"
 )
 
 // themePalette is the per-theme input to buildTheme. It carries only

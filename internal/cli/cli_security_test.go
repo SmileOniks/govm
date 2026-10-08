@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/smileoniks-ctrl/govm/internal/adapter/local"
-	"github.com/smileoniks-ctrl/govm/internal/paths"
+	"github.com/SmileOniks/govm/internal/adapter/local"
+	"github.com/SmileOniks/govm/internal/paths"
 )
 
 func TestRegistryFindRejectsTraversalQueries(t *testing.T) {

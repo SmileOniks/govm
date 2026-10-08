@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
-	"github.com/smileoniks-ctrl/govm/internal/lifecycle"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/lifecycle"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 // TestInstalledTab_UKeyTriggersSwitchVersion regression-tests a bug

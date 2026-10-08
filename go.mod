@@ -1,4 +1,4 @@
-module github.com/smileoniks-ctrl/govm
+module github.com/SmileOniks/govm
 
 go 1.26.1
 

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/smileoniks-ctrl/govm/internal/install"
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/install"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 var errBoom = errors.New("boom")

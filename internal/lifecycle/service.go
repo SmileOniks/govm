@@ -13,9 +13,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/smileoniks-ctrl/govm/internal/paths"
-	"github.com/smileoniks-ctrl/govm/internal/state"
-	"github.com/smileoniks-ctrl/govm/internal/version"
+	"github.com/SmileOniks/govm/internal/paths"
+	"github.com/SmileOniks/govm/internal/state"
+	"github.com/SmileOniks/govm/internal/version"
 )
 
 const (

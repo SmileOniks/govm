@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/smileoniks-ctrl/govm/internal/paths"
-	"github.com/smileoniks-ctrl/govm/internal/state"
+	"github.com/SmileOniks/govm/internal/paths"
+	"github.com/SmileOniks/govm/internal/state"
 )
 
 type recoveryHandler struct {

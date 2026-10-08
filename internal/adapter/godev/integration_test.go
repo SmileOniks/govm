@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/smileoniks-ctrl/govm/internal/adapter/godev"
-	"github.com/smileoniks-ctrl/govm/internal/adapter/local"
-	"github.com/smileoniks-ctrl/govm/internal/loader"
+	"github.com/SmileOniks/govm/internal/adapter/godev"
+	"github.com/SmileOniks/govm/internal/adapter/local"
+	"github.com/SmileOniks/govm/internal/loader"
 )
 
 type fakeRegistry struct {

@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	coredeps "github.com/SmileOniks/govm/internal/deps"
 	"github.com/charmbracelet/x/ansi"
-	coredeps "github.com/smileoniks-ctrl/govm/internal/deps"
 )
 
 func TestRenderDependencyUpdateDialogContainsWarning(t *testing.T) {

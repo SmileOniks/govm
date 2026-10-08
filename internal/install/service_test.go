@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/SmileOniks/govm/internal/paths"
+	"github.com/SmileOniks/govm/internal/state"
 	"github.com/gofrs/flock"
-	"github.com/smileoniks-ctrl/govm/internal/paths"
-	"github.com/smileoniks-ctrl/govm/internal/state"
 )
 
 // Test doubles

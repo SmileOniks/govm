@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/smileoniks-ctrl/govm/internal/config"
-	"github.com/smileoniks-ctrl/govm/internal/prune"
+	"github.com/SmileOniks/govm/internal/config"
+	"github.com/SmileOniks/govm/internal/prune"
 )
 
 const catalogJSON = `[{"version":"go1.27.1","stable":true,"files":[]}]`

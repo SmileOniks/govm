@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/smileoniks-ctrl/govm/internal/utils"
+	"github.com/SmileOniks/govm/internal/utils"
 )
 
 func catalogFixture() []utils.GoVersion {
